@@ -6,17 +6,20 @@ from datetime import datetime
 
 def main(page: ft.Page):
     db.inicializar_db()
+    
     page.title = "Sistema de Inventario y Ventas"
     page.window_width = 450
     page.window_height = 700
     page.theme_mode = ft.ThemeMode.DARK
     page.scroll = "adaptive"
     page.padding = 0
+    page.window_icon = "assets/logo.png"
+    
 
     
     #  NAVEGACION MANUAL
     
-    TAB_LABELS = ["📦 Agregar", "🛒 Vender", "🗂 Inventario", "📊 Ventas"]
+    TAB_LABELS = [" Agregar", " Vender", " Inventario", " Ventas"]
     tab_actual = {"index": 0}
     nav_buttons = []
     vistas = []
@@ -483,4 +486,10 @@ def main(page: ft.Page):
     )
 
 
-ft.app(target=main)
+
+
+
+    
+
+
+ft.app(target=main, assets_dir="assets")
