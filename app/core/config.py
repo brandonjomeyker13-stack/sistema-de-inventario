@@ -31,21 +31,7 @@ class Settings(BaseSettings):
     # Dominios permitidos para CORS, separados por coma. Debe incluir el
     # dominio real donde Lovable publique el frontend (y localhost para
     # cuando tu compañero prueba en su máquina).
-    CORS_ORIGINS: str = "https://stocktrack-ai.lovable.app/"
-
-    # Client ID de Google (Google Cloud Console -> APIs & Services ->
-    # Credentials -> OAuth 2.0 Client ID -> "Web application"). El mismo
-    # Client ID lo usa Lovable (frontend) y esta API: aquí sirve para
-    # confirmar que el ID token que llega fue emitido para nuestra app y
-    # no para otra. Queda opcional (None) para no romper el arranque si
-    # todavía no lo configuras — el endpoint /auth/google simplemente
-    # fallará con un error claro hasta que lo agregues en Render.
-    GOOGLE_CLIENT_ID: str | None = None
-
-    # Mientras estás en testing sin dominio ni proveedor de correo, deja
-    # esto en False para poder loguearte sin haber verificado el email.
-    # Cuando tengas Resend/SendGrid conectado, cámbialo a True en Render.
-    REQUERIR_EMAIL_VERIFICADO: bool = False
+    CORS_ORIGINS: str = "tender-ia.lovable.app"
 
     @property
     def cors_origins_list(self) -> list[str]:
