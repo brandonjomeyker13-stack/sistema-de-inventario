@@ -18,6 +18,27 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.config import settings
 
+import hashlib
+import secrets
+
+def generar_token_verificacion() -> str:
+    """Token aleatorio para el link de verificación de correo (y, más
+    adelante, reset de contraseña). No es un JWT: no necesita llevar
+    información adentro, solo ser único e imposible de adivinar."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_token(token: str) -> str:
+    """Hash determinístico (SHA-256) para poder buscar un refresh token en
+    la base de datos por su hash, sin guardar el valor real.
+
+    A propósito NO se usa bcrypt aquí: bcrypt genera un salt distinto cada
+    vez, así que dos hashes del mismo password nunca son iguales — perfecto
+    para contraseñas, pero imposible de usar para "busca la sesión con este
+    token" (tendrías que comparar contra todas las filas). Como el refresh
+    token ya es aleatorio y largo (un JWT firmado), SHA-256 sin salt es
+    seguro aquí y permite la búsqueda directa por índice."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")

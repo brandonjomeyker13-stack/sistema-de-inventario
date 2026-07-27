@@ -40,3 +40,7 @@ def actualizar_nombre_negocio(db: Session, usuario: Usuario, nombre_negocio: str
 def actualizar_password(db: Session, usuario: Usuario, password_hash: str) -> None:
     usuario.password_hash = password_hash
     db.commit()
+    
+def marcar_email_verificado(db: Session, usuario: Usuario) -> None:
+    usuario.email_verificado = True
+    db.commit()

@@ -17,7 +17,7 @@ from app.api.v1.router import router as api_v1_router
 
 # Se importan los modelos para que Base los conozca antes del create_all
 # de más abajo. No se usan directamente en este archivo.
-from app.models import usuario, producto, venta  # noqa: F401
+from app.models import usuario, producto, venta, token_verificacion, sesion  # noqa: F401
 
 app = FastAPI(title="NorBox API", version="1.0.0")
 
