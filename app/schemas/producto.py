@@ -1,0 +1,27 @@
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+
+
+class ProductoCrear(BaseModel):
+    nombre: str = Field(min_length=1, max_length=255)
+    cantidad: int = Field(ge=0)
+    precio: float = Field(ge=0)
+    cuanto_costo: float = Field(ge=0)
+
+    @field_validator("nombre")
+    @classmethod
+    def limpiar_nombre(cls, v: str) -> str:
+        return v.strip()
+
+
+class ProductoActualizar(ProductoCrear):
+    pass
+
+
+class ProductoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    nombre: str
+    cantidad: int
+    precio: float
+    cuanto_costo: float
