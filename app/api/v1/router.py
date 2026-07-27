@@ -1,24 +1,19 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+"""
+app/api/v1/router.py — Punto de entrada de la versión 1 de la API.
 
-from app.database.session import get_db
-from app.schemas.auth import UsuarioRegistro, UsuarioLogin, Token, RefrescarToken
-from app.schemas.usuario import UsuarioOut
-from app.services import auth_service
+Junta todos los routers de recursos bajo el prefijo /api/v1. main.py solo
+conoce este archivo; no conoce auth.py, usuario.py, producto.py ni
+venta.py directamente — así el día que exista una v2, se agrega
+app/api/v2/ sin tocar main.py.
+"""
 
-router = APIRouter(prefix="/auth", tags=["Autenticación"])
+from fastapi import APIRouter
 
+from app.api.v1 import auth, usuario, producto, venta
 
-@router.post("/registro", response_model=UsuarioOut, status_code=201)
-def registro(datos: UsuarioRegistro, db: Session = Depends(get_db)):
-    return auth_service.registrar(db, datos.email, datos.password, datos.nombre_negocio)
+router = APIRouter(prefix="/api/v1")
 
-
-@router.post("/login", response_model=Token)
-def login(datos: UsuarioLogin, db: Session = Depends(get_db)):
-    return auth_service.iniciar_sesion(db, datos.email, datos.password)
-
-
-@router.post("/refresh", response_model=Token)
-def refresh(datos: RefrescarToken, db: Session = Depends(get_db)):
-    return auth_service.refrescar(db, datos.refresh_token)
+router.include_router(auth.router)
+router.include_router(usuario.router)
+router.include_router(producto.router)
+router.include_router(venta.router)
