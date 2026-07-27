@@ -23,5 +23,5 @@ class Usuario(Base):
     password_hash = Column(String(255), nullable=False)
     nombre_negocio = Column(String(255), nullable=False)
     activo = Column(Boolean, nullable=False, default=True)
-    email_verificado = Column(Boolean, nullable=False, default=False)
+    email_verificado = Column(Boolean, nullable=False, default=True)
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
