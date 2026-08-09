@@ -15,7 +15,7 @@ Dos decisiones que conviene entender:
 
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import create_engine, pool
 
 from alembic import context
 
@@ -26,7 +26,6 @@ from app.database.session import Base
 from app.models import usuario, producto, venta, sesion, token_verificacion  # noqa: F401
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -37,7 +36,7 @@ target_metadata = Base.metadata
 def run_migrations_offline() -> None:
     """Genera el SQL sin conectarse (alembic upgrade head --sql)."""
     context.configure(
-        url=config.get_main_option("sqlalchemy.url"),
+        url=settings.DATABASE_URL,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -48,12 +47,15 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Se conecta a la base y aplica las migraciones pendientes."""
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    """Se conecta a la base y aplica las migraciones pendientes.
+
+    El engine se construye directamente desde settings.DATABASE_URL, sin
+    pasar por alembic.ini. No es un capricho: escribir la URL en el ini
+    la hace pasar por configparser, que trata `%` como sintaxis de
+    interpolación y revienta con cualquier contraseña que lleve
+    caracteres escapados (`%40` para una arroba, por ejemplo).
+    """
+    connectable = create_engine(settings.DATABASE_URL, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(
