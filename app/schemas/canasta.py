@@ -28,6 +28,9 @@ class CanastaItemAgregar(BaseModel):
 class CanastaCantidad(BaseModel):
     # 0 quita la línea de la canasta.
     cantidad: int = Field(ge=0)
+    # Igual que al agregar: el celular se identifica por aquí cuando el
+    # proxy no deja pasar la cabecera.
+    token: str | None = None
 
 
 class CanastaLineaOut(BaseModel):

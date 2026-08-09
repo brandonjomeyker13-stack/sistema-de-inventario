@@ -89,13 +89,18 @@ def cambiar_cantidad(
     canasta_id: str,
     item_id: str,
     datos: CanastaCantidad,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    x_canasta_token: str | None = Header(default=None),
+    usuario_actual: Usuario | None = Depends(obtener_usuario_opcional),
     db: Session = Depends(get_db),
 ):
-    """Corregir cantidades es del tendero, no del celular: el escáner
-    suma, pero quien decide qué se cobra es quien está en la caja."""
+    """Corrige la cantidad de una línea. Cantidad 0 la quita.
+
+    Acepta sesión o token: quien escanea de más tiene que poder
+    arreglarlo sin ir hasta el PC.
+    """
     return canasta_service.cambiar_cantidad(
-        db, canasta_id, usuario_actual.id, item_id, datos.cantidad
+        db, canasta_id, usuario_actual.id if usuario_actual else None,
+        x_canasta_token or datos.token, item_id, datos.cantidad,
     )
 
 
@@ -103,10 +108,20 @@ def cambiar_cantidad(
 def quitar_item(
     canasta_id: str,
     item_id: str,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    x_canasta_token: str | None = Header(default=None),
+    token: str | None = None,
+    usuario_actual: Usuario | None = Depends(obtener_usuario_opcional),
     db: Session = Depends(get_db),
 ):
-    return canasta_service.quitar(db, canasta_id, usuario_actual.id, item_id)
+    """Quita una línea. Acepta sesión o token del celular.
+
+    Al no haber cuerpo en un DELETE, el token se acepta como parámetro de
+    consulta además de en la cabecera.
+    """
+    return canasta_service.quitar(
+        db, canasta_id, usuario_actual.id if usuario_actual else None,
+        x_canasta_token or token, item_id,
+    )
 
 
 @router.post("/{canasta_id}/cobrar", response_model=VentaOut,

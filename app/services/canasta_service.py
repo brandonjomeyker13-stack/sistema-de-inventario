@@ -5,15 +5,21 @@ Aquí vive el control de acceso de la canasta, que es la parte con riesgo.
 Hay dos formas de tocar una canasta:
 
   - Con la sesión del tendero (JWT): puede todo, incluido cobrar.
-  - Con el token del celular: SOLO puede leer y agregar productos a esa
-    canasta concreta. No puede cobrar, no puede ver otras canastas, no
-    puede tocar el inventario.
+  - Con el token del celular: puede LEER y EDITAR los productos de esa
+    canasta concreta (agregar, cambiar cantidad, quitar). No puede
+    cobrar, no puede descartarla, no puede ver otras canastas, no puede
+    tocar el inventario.
 
-Esa asimetría es deliberada. El token viaja en un QR mostrado en la
-pantalla del PC; cualquiera que pase por delante puede fotografiarlo. Con
-él, lo peor que puede hacer un curioso es meterle productos a una venta
-que el tendero está viendo en pantalla en ese momento — y que va a
-revisar antes de cobrar.
+La línea está puesta donde importa: el token nunca mueve dinero ni stock.
+Editar la lista de una venta que el tendero tiene delante en pantalla es
+otra cosa — la ve, la revisa y la lee en voz alta antes de cobrar.
+
+El riesgo residual, para que quede escrito: quien fotografíe el QR puede
+manipular esa venta en curso hasta que se cobre o caduque. No puede robar
+mercancía ni datos, pero sí puede hacer que la cuenta salga mal si el
+tendero cobra sin mirar. Si algún día molesta, la respuesta no es quitar
+el borrado (poner la cantidad en 0 equivale a borrar) sino acortar la
+vida del token o regenerarlo tras cada cobro.
 """
 
 from sqlalchemy.orm import Session
@@ -166,9 +172,15 @@ def agregar(db: Session, canasta_id: str, usuario_id: str | None, token: str | N
     return _pintar(db, canasta)
 
 
-def cambiar_cantidad(db: Session, canasta_id: str, usuario_id: str, item_id: str,
-                     cantidad: int) -> dict:
-    canasta = _autorizar(db, canasta_id, usuario_id, None, exige_dueno=True)
+def cambiar_cantidad(db: Session, canasta_id: str, usuario_id: str | None, token: str | None,
+                     item_id: str, cantidad: int) -> dict:
+    """Corregir cantidades también desde el celular.
+
+    Quien escanea de más tiene que poder corregirlo ahí mismo. Obligar a
+    caminar hasta el PC para arreglar un escaneo doble haría que nadie
+    use el celular como lector.
+    """
+    canasta = _autorizar(db, canasta_id, usuario_id, token)
     item = canasta_repository.obtener_item(db, canasta.id, item_id)
     if not item:
         raise NoEncontrado("Ese producto no está en la canasta")
@@ -177,8 +189,15 @@ def cambiar_cantidad(db: Session, canasta_id: str, usuario_id: str, item_id: str
     return _pintar(db, canasta)
 
 
-def quitar(db: Session, canasta_id: str, usuario_id: str, item_id: str) -> dict:
-    canasta = _autorizar(db, canasta_id, usuario_id, None, exige_dueno=True)
+def quitar(db: Session, canasta_id: str, usuario_id: str | None, token: str | None,
+           item_id: str) -> dict:
+    """Quitar una línea, también desde el celular.
+
+    Va junto con cambiar_cantidad: poner la cantidad en 0 ya equivale a
+    quitar la línea, así que permitir una y no la otra no protegería de
+    nada y solo complicaría el frontend.
+    """
+    canasta = _autorizar(db, canasta_id, usuario_id, token)
     item = canasta_repository.obtener_item(db, canasta.id, item_id)
     if not item:
         raise NoEncontrado("Ese producto no está en la canasta")
