@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from pydantic import BaseModel, Field, ConfigDict, model_validator, field_validator
+
+from app.core.fechas import normalizar_fecha
 
 
 class VentaItemCrear(BaseModel):
@@ -39,6 +41,20 @@ class VentaCrear(BaseModel):
     # de esta venta > dias_plazo habitual del cliente > sin plazo.
     dias_plazo: int | None = Field(default=None, ge=0, le=365)
     fecha_vencimiento: str | None = None
+
+    @field_validator("fecha_vencimiento")
+    @classmethod
+    def validar_vencimiento(cls, v: str | None) -> str | None:
+        """Normaliza lo que mande el calendario del frontend.
+
+        Un date picker de JavaScript suele entregar un ISO completo
+        ('2026-08-23T05:00:00.000Z'); aquí se reduce a la fecha. Cualquier
+        otro formato se rechaza con un 422 explícito, que es mucho mejor
+        que guardarlo y que reviente días después al calcular atrasos.
+        """
+        if v is None or not v.strip():
+            return None
+        return normalizar_fecha(v)
 
     # Campos de la forma antigua (una venta = un producto).
     nombre_producto: str | None = None

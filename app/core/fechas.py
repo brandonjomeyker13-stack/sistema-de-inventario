@@ -38,6 +38,35 @@ def hoy_local() -> str:
     return ahora_local().strftime(FORMATO_FECHA)
 
 
+def normalizar_fecha(valor: str) -> str:
+    """Deja una fecha en 'YYYY-MM-DD', o lanza ValueError.
+
+    Acepta también un datetime ISO completo y se queda con la parte de la
+    fecha. No es por capricho: los selectores de calendario del navegador
+    suelen entregar `toISOString()`, que devuelve algo como
+    '2026-08-23T05:00:00.000Z'. Guardar eso tal cual haría que el cálculo
+    de atrasos fallara al leerlo, y el error saldría lejos de su causa.
+
+    Se corta por la 'T' en vez de parsear el datetime a propósito: nos
+    interesa el día que el usuario tocó en el calendario, no convertirlo
+    de zona horaria. Si eligió el 23, es el 23.
+    """
+    if not isinstance(valor, str):
+        raise ValueError("La fecha debe venir como texto")
+
+    limpio = valor.strip()
+    if "T" in limpio:
+        limpio = limpio.split("T", 1)[0]
+
+    try:
+        datetime.strptime(limpio, FORMATO_FECHA)
+    except ValueError:
+        raise ValueError(
+            f"Fecha inválida: '{valor}'. Se espera el formato AAAA-MM-DD (por ejemplo 2026-08-23)"
+        )
+    return limpio
+
+
 def sumar_dias(dias: int, desde: str | None = None) -> str:
     """Fecha resultante de sumar `dias` a `desde` (por defecto, hoy)."""
     base = datetime.strptime(desde, FORMATO_FECHA).date() if desde else ahora_local().date()
@@ -53,7 +82,14 @@ def dias_de_atraso(vencimiento: str | None) -> int:
     """
     if not vencimiento:
         return 0
-    limite = datetime.strptime(vencimiento, FORMATO_FECHA).date()
+    try:
+        limite = datetime.strptime(vencimiento, FORMATO_FECHA).date()
+    except ValueError:
+        # Tolerante a propósito: la validación de entrada está en
+        # normalizar_fecha, así que aquí no debería llegar basura. Pero si
+        # una fila vieja o cargada a mano trae algo raro, es preferible
+        # tratarla como "sin plazo" que tumbar la lista de deudores entera.
+        return 0
     atraso = (ahora_local().date() - limite).days
     return max(atraso, 0)
 
