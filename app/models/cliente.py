@@ -13,7 +13,7 @@ acaso.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Index
 
 from app.database.session import Base
 
@@ -25,6 +25,10 @@ class Cliente(Base):
     usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
     nombre = Column(String(255), nullable=False)
     telefono = Column(String(64), nullable=True)
+    # Plazo habitual de este cliente, en días. Sirve de valor por defecto
+    # al fiarle, para no teclearlo cada vez: "Juan paga los viernes" se
+    # convierte en dias_plazo=7 y ya no hay que acordarse.
+    dias_plazo = Column(Integer, nullable=True)
     notas = Column(String(500), nullable=True)
     eliminado = Column(Boolean, nullable=False, default=False)
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

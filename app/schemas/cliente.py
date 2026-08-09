@@ -5,6 +5,9 @@ class ClienteCrear(BaseModel):
     nombre: str = Field(min_length=1, max_length=255)
     telefono: str | None = Field(default=None, max_length=64)
     notas: str | None = Field(default=None, max_length=500)
+    # Plazo habitual al fiarle, en días. Se usa como valor por defecto en
+    # cada venta fiada; None significa "sin plazo acordado".
+    dias_plazo: int | None = Field(default=None, ge=0, le=365)
 
     @field_validator("nombre")
     @classmethod
@@ -30,10 +33,15 @@ class ClienteOut(BaseModel):
     nombre: str
     telefono: str | None = None
     notas: str | None = None
+    dias_plazo: int | None = None
 
 
 class DeudorOut(BaseModel):
-    """Una línea de la libreta de fiados."""
+    """Una línea de la libreta de fiados.
+
+    Vienen ordenados por atraso (más días primero) y luego por monto: la
+    pantalla existe para decidir a quién cobrar hoy.
+    """
 
     cliente_id: str
     nombre: str
@@ -41,6 +49,10 @@ class DeudorOut(BaseModel):
     deuda_total: float
     ventas_pendientes: int
     fiado_mas_antiguo: str | None = None
+    # Vencimiento más próximo entre sus deudas vivas. None = sin plazo.
+    vence: str | None = None
+    # 0 si está al día o no tiene plazo. Nunca negativo.
+    dias_atraso: int = 0
 
 
 class VentaFiadaOut(BaseModel):
@@ -52,6 +64,7 @@ class VentaFiadaOut(BaseModel):
     precio_venta_total: float
     total_abonado: float
     saldo_pendiente: float
+    fecha_vencimiento: str | None = None
 
 
 class DetalleFiadosOut(BaseModel):

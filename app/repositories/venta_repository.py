@@ -20,6 +20,7 @@ from app.models.producto import Producto
 def crear_venta_atomica(
     db: Session, usuario_id: str, lineas: list[dict], fecha: str,
     cliente_id: str | None = None, es_fiado: bool = False,
+    fecha_vencimiento: str | None = None,
 ) -> Venta:
     """Registra una venta de uno o varios productos, todo o nada.
 
@@ -77,6 +78,7 @@ def crear_venta_atomica(
         fecha=fecha,
         cliente_id=cliente_id,
         es_fiado=es_fiado,
+        fecha_vencimiento=fecha_vencimiento,
     )
     venta.items = [
         VentaItem(

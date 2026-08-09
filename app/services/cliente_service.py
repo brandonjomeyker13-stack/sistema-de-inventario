@@ -25,18 +25,19 @@ def obtener(db: Session, usuario_id: str, cliente_id: str):
     return cliente
 
 
-def agregar(db: Session, usuario_id: str, nombre: str, telefono: str | None, notas: str | None):
+def agregar(db: Session, usuario_id: str, nombre: str, telefono: str | None,
+            notas: str | None, dias_plazo: int | None = None):
     if cliente_repository.existe_nombre(db, usuario_id, nombre):
         raise ErrorNegocio(f"Ya tienes un cliente llamado '{nombre.strip()}'")
-    return cliente_repository.crear(db, usuario_id, nombre, telefono, notas)
+    return cliente_repository.crear(db, usuario_id, nombre, telefono, notas, dias_plazo)
 
 
 def editar(db: Session, usuario_id: str, cliente_id: str, nombre: str,
-           telefono: str | None, notas: str | None):
+           telefono: str | None, notas: str | None, dias_plazo: int | None = None):
     cliente = obtener(db, usuario_id, cliente_id)
     if cliente_repository.existe_nombre(db, usuario_id, nombre, excluir_id=cliente_id):
         raise ErrorNegocio(f"Ya tienes otro cliente llamado '{nombre.strip()}'")
-    return cliente_repository.actualizar(db, cliente, nombre, telefono, notas)
+    return cliente_repository.actualizar(db, cliente, nombre, telefono, notas, dias_plazo)
 
 
 def eliminar(db: Session, usuario_id: str, cliente_id: str):

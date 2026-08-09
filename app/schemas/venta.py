@@ -35,6 +35,10 @@ class VentaCrear(BaseModel):
     # y sea de este negocio).
     cliente_id: str | None = None
     es_fiado: bool = False
+    # Plazo del fiado. Prioridad: fecha_vencimiento explícita > dias_plazo
+    # de esta venta > dias_plazo habitual del cliente > sin plazo.
+    dias_plazo: int | None = Field(default=None, ge=0, le=365)
+    fecha_vencimiento: str | None = None
 
     # Campos de la forma antigua (una venta = un producto).
     nombre_producto: str | None = None
@@ -90,6 +94,7 @@ class VentaOut(BaseModel):
     es_fiado: bool = False
     cliente_id: str | None = None
     saldo_pendiente: float = 0.0
+    fecha_vencimiento: str | None = None
 
 
 class GananciaOut(BaseModel):

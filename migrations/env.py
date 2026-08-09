@@ -6,11 +6,11 @@ Dos decisiones que conviene entender:
 1. La URL de la base sale de `settings.DATABASE_URL`, no de alembic.ini.
    Una sola fuente de verdad: la misma variable de entorno que usa la API.
 
-2. Se importan todos los modelos aquí abajo aunque no se usen. Alembic
-   compara `Base.metadata` contra la base real para detectar cambios, y
-   un modelo que nadie importó no está en `Base.metadata` — Alembic lo
-   leería como "esta tabla sobra" y generaría un DROP TABLE. Si algún día
-   agregas un modelo nuevo, agrégalo también a esta lista.
+2. Se importa `app.models` entero. Alembic compara `Base.metadata`
+   contra la base real, y un modelo que nadie importó no está en el
+   metadata — Alembic lo leería como "esta tabla sobra" y generaría un
+   DROP TABLE. El registro de modelos vive en app/models/__init__.py, así
+   que aquí basta con importar el paquete.
 """
 
 from logging.config import fileConfig
@@ -20,13 +20,9 @@ from sqlalchemy import create_engine, pool
 from alembic import context
 
 from app.core.config import settings
-from app.database.session import Base
 
-# Importar los modelos puebla Base.metadata. No se usan directamente.
-from app.models import (  # noqa: F401
-    usuario, producto, venta, venta_item, sesion, token_verificacion,
-    cliente, abono, categoria,
-)
+# Importar el paquete puebla Base.metadata con todas las tablas.
+from app.models import Base  # noqa: F401
 
 config = context.config
 

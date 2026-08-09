@@ -38,6 +38,26 @@ def hoy_local() -> str:
     return ahora_local().strftime(FORMATO_FECHA)
 
 
+def sumar_dias(dias: int, desde: str | None = None) -> str:
+    """Fecha resultante de sumar `dias` a `desde` (por defecto, hoy)."""
+    base = datetime.strptime(desde, FORMATO_FECHA).date() if desde else ahora_local().date()
+    return (base + timedelta(days=dias)).strftime(FORMATO_FECHA)
+
+
+def dias_de_atraso(vencimiento: str | None) -> int:
+    """Días que lleva vencida una fecha. 0 si no ha vencido o no hay plazo.
+
+    Nunca devuelve negativos: "le faltan 3 días para vencer" no es un
+    atraso, y mezclarlos en el mismo número obligaría a quien lo lea a
+    recordar el signo.
+    """
+    if not vencimiento:
+        return 0
+    limite = datetime.strptime(vencimiento, FORMATO_FECHA).date()
+    atraso = (ahora_local().date() - limite).days
+    return max(atraso, 0)
+
+
 def ultimos_dias(dias: int) -> list[str]:
     """Las últimas `dias` fechas terminando hoy, de la más reciente a la
     más antigua. Incluye el día de hoy: ultimos_dias(1) == [hoy].

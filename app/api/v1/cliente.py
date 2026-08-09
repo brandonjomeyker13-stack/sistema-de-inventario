@@ -35,7 +35,8 @@ def agregar(
     usuario_actual: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    return cliente_service.agregar(db, usuario_actual.id, datos.nombre, datos.telefono, datos.notas)
+    return cliente_service.agregar(db, usuario_actual.id, datos.nombre, datos.telefono, datos.notas,
+                                   datos.dias_plazo)
 
 
 @router.put("/clientes/{cliente_id}", response_model=ClienteOut)
@@ -46,7 +47,8 @@ def editar(
     db: Session = Depends(get_db),
 ):
     return cliente_service.editar(
-        db, usuario_actual.id, cliente_id, datos.nombre, datos.telefono, datos.notas
+        db, usuario_actual.id, cliente_id, datos.nombre, datos.telefono, datos.notas,
+        datos.dias_plazo,
     )
 
 

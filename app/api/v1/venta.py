@@ -35,6 +35,7 @@ def vender(
     items = [item.model_dump() for item in datos.items]
     return venta_service.vender(
         db, usuario_actual.id, items, cliente_id=datos.cliente_id, es_fiado=datos.es_fiado,
+        dias_plazo=datos.dias_plazo, fecha_vencimiento=datos.fecha_vencimiento,
     )
 
 

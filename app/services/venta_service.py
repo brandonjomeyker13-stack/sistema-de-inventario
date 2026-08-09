@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NoEncontrado, ErrorNegocio
-from app.core.fechas import hoy_local, ultimos_dias
+from app.core.fechas import hoy_local, ultimos_dias, sumar_dias
 from app.repositories import producto_repository, venta_repository, cliente_repository
 
 
@@ -26,6 +26,7 @@ def _resolver_producto(db: Session, usuario_id: str, nombre: str | None, codigo_
 def vender(
     db: Session, usuario_id: str, items: list[dict],
     cliente_id: str | None = None, es_fiado: bool = False,
+    dias_plazo: int | None = None, fecha_vencimiento: str | None = None,
 ):
     """Registra una venta de uno o varios productos.
 
@@ -42,11 +43,25 @@ def vender(
         # Una deuda sin deudor es una pérdida disfrazada de venta.
         raise ErrorNegocio("Para fiar hay que decir a quién: falta el cliente")
 
+    cliente = None
     if cliente_id:
         # Valida de paso que el cliente sea de ESTE negocio.
         cliente = cliente_repository.obtener_por_id(db, usuario_id, cliente_id)
         if not cliente:
             raise NoEncontrado("Cliente no encontrado")
+
+    # Plazo: manda la fecha explícita; si no, los días de esta venta; si
+    # tampoco, el plazo habitual del cliente. Si no hay nada, el fiado
+    # queda sin vencimiento ("cuando puedas") y nunca aparece como
+    # atrasado — que es lo correcto: no se incumple un plazo inexistente.
+    vencimiento = None
+    if es_fiado:
+        if fecha_vencimiento:
+            vencimiento = fecha_vencimiento
+        else:
+            plazo = dias_plazo if dias_plazo is not None else (cliente.dias_plazo if cliente else None)
+            if plazo is not None:
+                vencimiento = sumar_dias(plazo)
 
     # Agrupar por producto antes de validar el stock. Si no se hiciera, el
     # mismo producto escaneado dos veces se validaría dos veces por
@@ -81,6 +96,7 @@ def vender(
 
     return venta_repository.crear_venta_atomica(
         db, usuario_id, lineas, hoy_local(), cliente_id=cliente_id, es_fiado=es_fiado,
+        fecha_vencimiento=vencimiento,
     )
 
 

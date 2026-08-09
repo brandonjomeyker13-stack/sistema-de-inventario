@@ -6,9 +6,10 @@ filtra por él. Es la barrera que impide que un negocio vea la libreta de
 deudores de otro.
 """
 
-from sqlalchemy import func, case
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.fechas import dias_de_atraso
 from app.models.cliente import Cliente
 from app.models.venta import Venta
 from app.models.abono import Abono
@@ -46,9 +47,11 @@ def existe_nombre(db: Session, usuario_id: str, nombre: str, excluir_id: str | N
     return db.query(query.exists()).scalar()
 
 
-def crear(db: Session, usuario_id: str, nombre: str, telefono: str | None, notas: str | None) -> Cliente:
+def crear(db: Session, usuario_id: str, nombre: str, telefono: str | None,
+          notas: str | None, dias_plazo: int | None = None) -> Cliente:
     cliente = Cliente(
         usuario_id=usuario_id, nombre=nombre.strip(), telefono=telefono, notas=notas,
+        dias_plazo=dias_plazo,
     )
     db.add(cliente)
     db.commit()
@@ -56,10 +59,12 @@ def crear(db: Session, usuario_id: str, nombre: str, telefono: str | None, notas
     return cliente
 
 
-def actualizar(db: Session, cliente: Cliente, nombre: str, telefono: str | None, notas: str | None) -> Cliente:
+def actualizar(db: Session, cliente: Cliente, nombre: str, telefono: str | None,
+               notas: str | None, dias_plazo: int | None = None) -> Cliente:
     cliente.nombre = nombre.strip()
     cliente.telefono = telefono
     cliente.notas = notas
+    cliente.dias_plazo = dias_plazo
     db.commit()
     db.refresh(cliente)
     return cliente
@@ -100,6 +105,10 @@ def deuda_por_cliente(db: Session, usuario_id: str) -> list[dict]:
             func.coalesce(func.sum(saldo), 0).label("deuda_total"),
             func.count(Venta.id).label("ventas_pendientes"),
             func.min(Venta.fecha).label("fiado_mas_antiguo"),
+            # El vencimiento más próximo entre sus deudas vivas. MIN sobre
+            # una columna de texto 'YYYY-MM-DD' ordena bien por ser ese
+            # formato; los fiados sin plazo son NULL y MIN los ignora.
+            func.min(Venta.fecha_vencimiento).label("vence"),
         )
         .join(Venta, Venta.cliente_id == Cliente.id)
         .outerjoin(abonado, abonado.c.venta_id == Venta.id)
@@ -115,7 +124,7 @@ def deuda_por_cliente(db: Session, usuario_id: str) -> list[dict]:
         .all()
     )
 
-    return [
+    deudores = [
         {
             "cliente_id": f.cliente_id,
             "nombre": f.nombre,
@@ -123,9 +132,18 @@ def deuda_por_cliente(db: Session, usuario_id: str) -> list[dict]:
             "deuda_total": round(float(f.deuda_total), 2),
             "ventas_pendientes": int(f.ventas_pendientes),
             "fiado_mas_antiguo": f.fiado_mas_antiguo,
+            "vence": f.vence,
+            "dias_atraso": dias_de_atraso(f.vence),
         }
         for f in filas
     ]
+
+    # Los atrasados primero, y entre ellos el que más días lleva. El
+    # tendero abre esta pantalla para saber a quién cobrar hoy, no para
+    # ver un ranking de montos: quien debe 5.000 desde hace un mes es más
+    # urgente que quien debe 50.000 desde ayer.
+    deudores.sort(key=lambda d: (-d["dias_atraso"], -d["deuda_total"]))
+    return deudores
 
 
 def ventas_fiadas_de_cliente(db: Session, usuario_id: str, cliente_id: str) -> list[Venta]:

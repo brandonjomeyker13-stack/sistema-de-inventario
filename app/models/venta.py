@@ -36,6 +36,10 @@ class Venta(Base):
     # deuda sin deudor no sirve de nada.
     cliente_id = Column(String(36), ForeignKey("clientes.id"), nullable=True, index=True)
     es_fiado = Column(Boolean, nullable=False, default=False)
+    # Hasta cuándo tiene el cliente para pagar. Lo decide el tendero en
+    # cada fiado; nullable porque hay fiados sin fecha acordada ("cuando
+    # puedas"), y forzar una inventada sería peor que no tenerla.
+    fecha_vencimiento = Column(String(10), nullable=True)
     eliminado = Column(Boolean, nullable=False, default=False)
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
