@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
 sqlalchemy
+alembic
 pydantic
 pydantic-settings
 bcrypt
@@ -8,3 +9,7 @@ PyJWT
 psycopg2-binary
 python-dotenv
 email-validator
+# zoneinfo lee la base de datos de husos horarios del sistema operativo.
+# Las imágenes slim de Linux a veces no la traen; este paquete la incluye
+# en el propio entorno de Python para que no dependa del contenedor.
+tzdata

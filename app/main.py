@@ -12,12 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.exceptions import ErrorNegocio, NoEncontrado, CredencialesInvalidas
-from app.database.session import Base, engine
 from app.api.v1.router import router as api_v1_router
-
-# Se importan los modelos para que Base los conozca antes del create_all
-# de más abajo. No se usan directamente en este archivo.
-from app.models import usuario, producto, venta, token_verificacion, sesion  # noqa: F401
 
 app = FastAPI(title="NorBox API", version="1.0.0")
 
@@ -30,13 +25,10 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
-def crear_tablas():
-    # Suficiente para el MVP: crea las tablas si no existen. El día que el
-    # esquema cambie con datos reales ya guardados (agregar una columna,
-    # por ejemplo), esto se reemplaza por migraciones con Alembic —
-    # create_all no sabe hacer ALTER TABLE sobre tablas existentes.
-    Base.metadata.create_all(bind=engine)
+# El esquema ya no se crea al arrancar. Lo gestiona Alembic
+# (`alembic upgrade head`, que corre en el startCommand de render.yaml).
+# create_all servía para el MVP, pero no sabe hacer ALTER TABLE: en
+# cuanto hay datos guardados y cambia una columna, deja de funcionar.
 
 
 @app.exception_handler(ErrorNegocio)
@@ -62,3 +54,6 @@ def salud():
     """Útil para que Render confirme que el servicio está vivo, y para
     verificar rápido en el navegador que el deploy funcionó."""
     return {"estado": "ok", "servicio": "NorBox API"}
+
+
+

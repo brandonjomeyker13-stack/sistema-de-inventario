@@ -25,3 +25,19 @@ class GananciaOut(BaseModel):
 class VentasPorFechaOut(BaseModel):
     ventas: list[VentaOut]
     ganancia_total: float
+
+
+class DiaResumenOut(BaseModel):
+    fecha: str
+    total_vendido: float
+    ganancia_total: float
+    numero_ventas: int
+
+
+class ResumenVentasOut(BaseModel):
+    """Los días vienen del más reciente al más antiguo, sin huecos: un día
+    sin ventas viene en cero, no ausente."""
+
+    dias: list[DiaResumenOut]
+    total_vendido: float
+    ganancia_total: float

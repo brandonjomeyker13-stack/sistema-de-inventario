@@ -57,6 +57,39 @@ def ganancia_por_fecha(db: Session, usuario_id: str, fecha: str) -> float:
     return float(resultado or 0)
 
 
+def resumen_por_fechas(db: Session, usuario_id: str, fechas: list[str]) -> dict[str, dict]:
+    """Totales agrupados por día, en una sola consulta.
+
+    Devuelve un dict indexado por fecha con solo los días que tuvieron
+    ventas; rellenar los vacíos es trabajo del servicio, que es quien
+    sabe qué rango de días se pidió.
+    """
+    filas = (
+        db.query(
+            Venta.fecha,
+            func.coalesce(func.sum(Venta.precio_venta_total), 0).label("total_vendido"),
+            func.coalesce(func.sum(Venta.ganancia_total), 0).label("ganancia_total"),
+            func.count(Venta.id).label("numero_ventas"),
+        )
+        .filter(
+            Venta.usuario_id == usuario_id,
+            Venta.eliminado.is_(False),
+            Venta.fecha.in_(fechas),
+        )
+        .group_by(Venta.fecha)
+        .all()
+    )
+
+    return {
+        fila.fecha: {
+            "total_vendido": round(float(fila.total_vendido), 2),
+            "ganancia_total": round(float(fila.ganancia_total), 2),
+            "numero_ventas": int(fila.numero_ventas),
+        }
+        for fila in filas
+    }
+
+
 def obtener_por_id(db: Session, usuario_id: str, venta_id: str) -> Venta | None:
     return (
         db.query(Venta)

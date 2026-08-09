@@ -4,7 +4,11 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    # Las migraciones corren antes de levantar la API. Va en el
+    # startCommand y no en el buildCommand porque el build de Render se
+    # cachea y puede no volver a ejecutarse en un redeploy. Si no hay
+    # migraciones pendientes, `upgrade head` es un no-op de milisegundos.
+    startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -18,3 +22,7 @@ services:
         value: "30"
       - key: CORS_ORIGINS
         sync: false
+      # Sin esto el servidor usaría UTC y las ventas de la noche caerían
+      # en el día siguiente. Ver app/core/fechas.py.
+      - key: ZONA_HORARIA
+        value: America/Bogota

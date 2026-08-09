@@ -48,3 +48,4 @@ Index(
     unique=True,
     postgresql_where=Producto.eliminado.is_(False),
 )
+

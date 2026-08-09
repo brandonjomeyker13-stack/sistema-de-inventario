@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     # fallará con un error claro hasta que lo agregues en Render.
     GOOGLE_CLIENT_ID: str | None = None
 
+    # Zona horaria del negocio. Determina qué se considera "hoy" al
+    # registrar una venta y al cortar los reportes diarios. NO se puede
+    # dejar que esto lo decida el servidor: Render corre en UTC, así que
+    # sin esto toda venta después de las 7 p.m. hora Colombia caía en el
+    # día siguiente. Ver app/core/fechas.py.
+    ZONA_HORARIA: str = "America/Bogota"
+
     # Mientras estás en testing sin dominio ni proveedor de correo, deja
     # esto en False para poder loguearte sin haber verificado el email.
     # Cuando tengas Resend/SendGrid conectado, cámbialo a True en Render.

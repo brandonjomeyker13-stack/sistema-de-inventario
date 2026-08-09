@@ -14,7 +14,7 @@ venta de las 11pm no se cuela en el reporte del día siguiente.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Index
 
 from app.database.session import Base
 
@@ -32,3 +32,10 @@ class Venta(Base):
     fecha = Column(String(10), nullable=False, index=True)
     eliminado = Column(Boolean, nullable=False, default=False)
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+# Todas las consultas de reportes filtran por usuario y fecha a la vez
+# (ver venta_repository.resumen_por_fechas), así que el índice compuesto
+# es el que realmente se usa; los de columna suelta se quedan porque
+# otras consultas los aprovechan.
+Index("ix_ventas_usuario_fecha", Venta.usuario_id, Venta.fecha)
