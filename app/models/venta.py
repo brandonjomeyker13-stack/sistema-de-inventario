@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy.orm import relationship
 
 from app.database.session import Base
 
@@ -30,8 +31,36 @@ class Venta(Base):
     precio_venta_total = Column(Float, nullable=False)
     ganancia_total = Column(Float, nullable=False)
     fecha = Column(String(10), nullable=False, index=True)
+    # Fiado: la mercancía salió pero el dinero no entró. `cliente_id` es
+    # obligatorio cuando es_fiado es True (se valida en el servicio): una
+    # deuda sin deudor no sirve de nada.
+    cliente_id = Column(String(36), ForeignKey("clientes.id"), nullable=True, index=True)
+    es_fiado = Column(Boolean, nullable=False, default=False)
     eliminado = Column(Boolean, nullable=False, default=False)
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    # lazy="selectin": al listar las ventas de un día, SQLAlchemy trae
+    # todos los ítems en UNA consulta extra en vez de una por venta.
+    # Con lazy por defecto esto sería un N+1 silencioso.
+    items = relationship(
+        "VentaItem",
+        back_populates="venta",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    abonos = relationship("Abono", cascade="all, delete-orphan", lazy="selectin")
+
+    @property
+    def total_abonado(self) -> float:
+        return round(sum(a.monto for a in self.abonos), 2)
+
+    @property
+    def saldo_pendiente(self) -> float:
+        """Lo que falta por cobrar. Se calcula, nunca se guarda: un saldo
+        almacenado se desincroniza y el tendero acaba cobrando mal."""
+        if not self.es_fiado:
+            return 0.0
+        return round(self.precio_venta_total - self.total_abonado, 2)
 
 
 # Todas las consultas de reportes filtran por usuario y fecha a la vez
@@ -39,3 +68,9 @@ class Venta(Base):
 # es el que realmente se usa; los de columna suelta se quedan porque
 # otras consultas los aprovechan.
 Index("ix_ventas_usuario_fecha", Venta.usuario_id, Venta.fecha)
+
+# Se importa al final para que la relación "VentaItem" de arriba pueda
+# resolverse siempre que alguien importe Venta. Va aquí abajo y no en la
+# cabecera porque venta_item.py referencia a Venta por su nombre.
+from app.models.venta_item import VentaItem  # noqa: E402,F401
+from app.models.abono import Abono  # noqa: E402,F401

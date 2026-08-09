@@ -1,20 +1,95 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
+
+
+class VentaItemCrear(BaseModel):
+    """Una línea de la venta. Se identifica el producto por código de
+    barras (preferido, es exacto) o por nombre."""
+
+    nombre_producto: str | None = None
+    codigo_barras: str | None = None
+    cantidad: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def exige_identificador(self):
+        if not self.nombre_producto and not self.codigo_barras:
+            raise ValueError("Cada ítem necesita nombre_producto o codigo_barras")
+        return self
 
 
 class VentaCrear(BaseModel):
-    nombre_producto: str = Field(min_length=1)
-    cantidad: int = Field(gt=0)
+    """Acepta dos formas a propósito.
+
+    La nueva:   {"items": [{"nombre_producto": "Arroz", "cantidad": 2}, ...]}
+    La antigua: {"nombre_producto": "Arroz", "cantidad": 2}
+
+    La antigua sigue viva porque el frontend actual la usa; si se quitara
+    de golpe, la aplicación dejaría de poder vender hasta que Lovable se
+    actualizara. Internamente todo se normaliza a `items`, así que el
+    resto del código solo conoce una forma.
+    """
+
+    items: list[VentaItemCrear] | None = None
+
+    # Fiado. Si es_fiado va en True, cliente_id es obligatorio (se valida
+    # en el servicio, que es quien puede comprobar que el cliente exista
+    # y sea de este negocio).
+    cliente_id: str | None = None
+    es_fiado: bool = False
+
+    # Campos de la forma antigua (una venta = un producto).
+    nombre_producto: str | None = None
+    codigo_barras: str | None = None
+    cantidad: int | None = None
+
+    @model_validator(mode="after")
+    def normalizar(self):
+        if self.items:
+            return self
+
+        if self.cantidad is None or (not self.nombre_producto and not self.codigo_barras):
+            raise ValueError(
+                "Manda 'items' con la lista de productos, o 'nombre_producto'/'codigo_barras' "
+                "junto con 'cantidad' para una venta de un solo producto"
+            )
+        if self.cantidad <= 0:
+            raise ValueError("La cantidad debe ser mayor que cero")
+
+        self.items = [VentaItemCrear(
+            nombre_producto=self.nombre_producto,
+            codigo_barras=self.codigo_barras,
+            cantidad=self.cantidad,
+        )]
+        return self
+
+
+class VentaItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    producto_id: str | None
+    nombre_producto: str
+    cantidad: int
+    precio_unitario: float
+    precio_total: float
+    ganancia_total: float
 
 
 class VentaOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    # Resumen de la venta. Con un solo producto es su nombre; con varios,
+    # un recuento ("3 productos"). Se mantiene para no romper al frontend
+    # actual: el detalle real está en `items`.
     nombre_producto: str
     cantidad_vendida: int
     precio_venta_total: float
     ganancia_total: float
     fecha: str
+    items: list[VentaItemOut] = []
+    es_fiado: bool = False
+    cliente_id: str | None = None
+    saldo_pendiente: float = 0.0
 
 
 class GananciaOut(BaseModel):
@@ -32,6 +107,8 @@ class DiaResumenOut(BaseModel):
     total_vendido: float
     ganancia_total: float
     numero_ventas: int
+    # Parte de total_vendido que se fió: vendido pero todavía no cobrado.
+    total_fiado: float = 0.0
 
 
 class ResumenVentasOut(BaseModel):
@@ -41,3 +118,4 @@ class ResumenVentasOut(BaseModel):
     dias: list[DiaResumenOut]
     total_vendido: float
     ganancia_total: float
+    total_fiado: float = 0.0

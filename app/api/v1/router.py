@@ -9,7 +9,7 @@ app/api/v2/ sin tocar main.py.
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, usuario, producto, venta
+from app.api.v1 import auth, usuario, producto, venta, cliente, categoria
 
 router = APIRouter(prefix="/api/v1")
 
@@ -17,3 +17,5 @@ router.include_router(auth.router)
 router.include_router(usuario.router)
 router.include_router(producto.router)
 router.include_router(venta.router)
+router.include_router(cliente.router)
+router.include_router(categoria.router)

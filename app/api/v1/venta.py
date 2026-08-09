@@ -26,7 +26,16 @@ def vender(
     usuario_actual: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    return venta_service.vender(db, usuario_actual.id, datos.nombre_producto, datos.cantidad)
+    """Registra una venta de uno o varios productos.
+
+    Acepta `{"items": [...]}` y también la forma antigua de un solo
+    producto (`nombre_producto` + `cantidad`). El schema normaliza las dos
+    a `items`, así que aquí ya llega una sola forma.
+    """
+    items = [item.model_dump() for item in datos.items]
+    return venta_service.vender(
+        db, usuario_actual.id, items, cliente_id=datos.cliente_id, es_fiado=datos.es_fiado,
+    )
 
 
 @router.get("", response_model=VentasPorFechaOut)

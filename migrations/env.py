@@ -23,7 +23,10 @@ from app.core.config import settings
 from app.database.session import Base
 
 # Importar los modelos puebla Base.metadata. No se usan directamente.
-from app.models import usuario, producto, venta, sesion, token_verificacion  # noqa: F401
+from app.models import (  # noqa: F401
+    usuario, producto, venta, venta_item, sesion, token_verificacion,
+    cliente, abono, categoria,
+)
 
 config = context.config
 

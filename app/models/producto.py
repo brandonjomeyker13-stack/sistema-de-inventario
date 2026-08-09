@@ -26,6 +26,11 @@ class Producto(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
     nombre = Column(String(255), nullable=False)
+    # EAN-13 y similares. Nullable a propósito: la mayoría de productos de
+    # una tienda de barrio (el arroz a granel, los huevos sueltos) no
+    # tienen código, y obligar a inventárselo sería peor que no tenerlo.
+    codigo_barras = Column(String(64), nullable=True)
+    categoria_id = Column(String(36), ForeignKey("categorias.id"), nullable=True, index=True)
     cantidad = Column(Integer, nullable=False, default=0)
     precio = Column(Float, nullable=False, default=0)
     cuanto_costo = Column(Float, nullable=False, default=0)
@@ -45,6 +50,18 @@ class Producto(Base):
 Index(
     "uq_producto_usuario_nombre_activo",
     Producto.usuario_id, Producto.nombre,
+    unique=True,
+    postgresql_where=Producto.eliminado.is_(False),
+)
+
+# Mismo criterio para el código de barras: único dentro de un negocio,
+# entre los productos vivos. Dos tiendas distintas pueden (y van a) tener
+# el mismo EAN, eso es justamente lo que hará comparables sus datos.
+# El índice ignora las filas con codigo_barras NULL, así que los muchos
+# productos sin código no chocan entre sí.
+Index(
+    "uq_producto_usuario_codigo_activo",
+    Producto.usuario_id, Producto.codigo_barras,
     unique=True,
     postgresql_where=Producto.eliminado.is_(False),
 )

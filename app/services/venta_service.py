@@ -2,21 +2,85 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import NoEncontrado, ErrorNegocio
 from app.core.fechas import hoy_local, ultimos_dias
-from app.repositories import producto_repository, venta_repository
+from app.repositories import producto_repository, venta_repository, cliente_repository
 
 
-def vender(db: Session, usuario_id: str, nombre_producto: str, cantidad: int):
-    producto = producto_repository.obtener_por_nombre(db, usuario_id, nombre_producto)
+def _resolver_producto(db: Session, usuario_id: str, nombre: str | None, codigo_barras: str | None):
+    """Encuentra el producto por código de barras o, si no, por nombre.
+
+    El código manda cuando viene: es un identificador exacto, mientras que
+    el nombre depende de cómo lo escribió el tendero.
+    """
+    if codigo_barras:
+        producto = producto_repository.obtener_por_codigo_barras(db, usuario_id, codigo_barras)
+        if not producto:
+            raise NoEncontrado(f"No hay ningún producto con el código {codigo_barras}")
+        return producto
+
+    producto = producto_repository.obtener_por_nombre(db, usuario_id, nombre or "")
     if not producto:
         raise NoEncontrado("Ese producto no existe en el inventario")
-    if producto.cantidad < cantidad:
-        raise ErrorNegocio(f"No puedes vender más de lo que hay en stock (disponible: {producto.cantidad})")
+    return producto
 
-    total = round(cantidad * producto.precio, 2)
-    ganancia = round((producto.precio - producto.cuanto_costo) * cantidad, 2)
+
+def vender(
+    db: Session, usuario_id: str, items: list[dict],
+    cliente_id: str | None = None, es_fiado: bool = False,
+):
+    """Registra una venta de uno o varios productos.
+
+    `items` es una lista de dicts con nombre_producto y/o codigo_barras,
+    más cantidad.
+
+    Si `es_fiado`, la mercancía sale igual (el stock baja) pero queda una
+    deuda a nombre del cliente.
+    """
+    if not items:
+        raise ErrorNegocio("La venta no tiene productos")
+
+    if es_fiado and not cliente_id:
+        # Una deuda sin deudor es una pérdida disfrazada de venta.
+        raise ErrorNegocio("Para fiar hay que decir a quién: falta el cliente")
+
+    if cliente_id:
+        # Valida de paso que el cliente sea de ESTE negocio.
+        cliente = cliente_repository.obtener_por_id(db, usuario_id, cliente_id)
+        if not cliente:
+            raise NoEncontrado("Cliente no encontrado")
+
+    # Agrupar por producto antes de validar el stock. Si no se hiciera, el
+    # mismo producto escaneado dos veces se validaría dos veces por
+    # separado contra el stock completo: con 5 unidades disponibles, dos
+    # líneas de 3 pasarían el control individualmente y dejarían el
+    # inventario en negativo.
+    acumulado: dict[str, dict] = {}
+    for item in items:
+        producto = _resolver_producto(
+            db, usuario_id, item.get("nombre_producto"), item.get("codigo_barras")
+        )
+        cantidad = item["cantidad"]
+        if producto.id in acumulado:
+            acumulado[producto.id]["cantidad"] += cantidad
+        else:
+            acumulado[producto.id] = {"producto": producto, "cantidad": cantidad}
+
+    lineas = []
+    for entrada in acumulado.values():
+        producto, cantidad = entrada["producto"], entrada["cantidad"]
+        if producto.cantidad < cantidad:
+            raise ErrorNegocio(
+                f"No puedes vender más '{producto.nombre}' de lo que hay en stock "
+                f"(pides {cantidad}, disponible: {producto.cantidad})"
+            )
+        lineas.append({
+            "producto": producto,
+            "cantidad": cantidad,
+            "total": round(cantidad * producto.precio, 2),
+            "ganancia": round((producto.precio - producto.cuanto_costo) * cantidad, 2),
+        })
 
     return venta_repository.crear_venta_atomica(
-        db, usuario_id, producto, cantidad, total, ganancia, hoy_local(),
+        db, usuario_id, lineas, hoy_local(), cliente_id=cliente_id, es_fiado=es_fiado,
     )
 
 
@@ -47,14 +111,25 @@ def resumen_ultimos_dias(db: Session, usuario_id: str, dias: int) -> dict:
     """
     fechas = ultimos_dias(dias)
     agregados = venta_repository.resumen_por_fechas(db, usuario_id, fechas)
+    fiado_por_dia = cliente_repository.total_fiado_por_fechas(db, usuario_id, fechas)
     dia_vacio = {"total_vendido": 0.0, "ganancia_total": 0.0, "numero_ventas": 0}
 
-    resumen = [{"fecha": fecha, **agregados.get(fecha, dia_vacio)} for fecha in fechas]
+    resumen = [
+        {
+            "fecha": fecha,
+            **agregados.get(fecha, dia_vacio),
+            # Cuánto de lo vendido ese día se fió. Es plata que aún no
+            # está en el cajón, y el tendero necesita verla separada.
+            "total_fiado": fiado_por_dia.get(fecha, 0.0),
+        }
+        for fecha in fechas
+    ]
 
     return {
         "dias": resumen,
         "total_vendido": round(sum(d["total_vendido"] for d in resumen), 2),
         "ganancia_total": round(sum(d["ganancia_total"] for d in resumen), 2),
+        "total_fiado": round(sum(d["total_fiado"] for d in resumen), 2),
     }
 
 

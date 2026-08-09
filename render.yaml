@@ -1,8 +1,15 @@
 services:
   - type: web
     name: norbox-api
-    env: python
+    # `runtime` es la clave actual; `env` era el nombre viejo y sigue
+    # funcionando, pero conviene no quedarse en el deprecado.
+    runtime: python
     plan: free
+    # Render considera el servicio vivo cuando esta ruta responde 200. Sin
+    # esto solo comprueba que el puerto esté abierto, y un arranque que
+    # falla a medias (por ejemplo, una migración rota) podría darse por
+    # bueno.
+    healthCheckPath: /
     buildCommand: "pip install -r requirements.txt"
     # Las migraciones corren antes de levantar la API. Va en el
     # startCommand y no en el buildCommand porque el build de Render se
@@ -10,6 +17,11 @@ services:
     # migraciones pendientes, `upgrade head` es un no-op de milisegundos.
     startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
+      # Fijar la versión evita que Render cambie de Python por su cuenta
+      # y te rompa un deploy que ayer funcionaba. Es la misma que usas en
+      # local, así que lo que pruebas es lo que se despliega.
+      - key: PYTHON_VERSION
+        value: "3.12.3"
       - key: DATABASE_URL
         sync: false
       - key: SECRET_KEY
