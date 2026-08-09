@@ -7,14 +7,15 @@ class VentaItemCrear(BaseModel):
     """Una línea de la venta. Se identifica el producto por código de
     barras (preferido, es exacto) o por nombre."""
 
+    producto_id: str | None = None
     nombre_producto: str | None = None
     codigo_barras: str | None = None
     cantidad: int = Field(gt=0)
 
     @model_validator(mode="after")
     def exige_identificador(self):
-        if not self.nombre_producto and not self.codigo_barras:
-            raise ValueError("Cada ítem necesita nombre_producto o codigo_barras")
+        if not self.producto_id and not self.nombre_producto and not self.codigo_barras:
+            raise ValueError("Cada ítem necesita producto_id, codigo_barras o nombre_producto")
         return self
 
 

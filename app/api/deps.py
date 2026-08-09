@@ -17,6 +17,10 @@ from app.repositories import usuario_repository
 from app.models.usuario import Usuario
 
 _esquema_bearer = HTTPBearer()
+# auto_error=False: sin token no falla, devuelve None. Lo usa la canasta
+# compartida, donde el celular se identifica con el token del QR en vez
+# de con una sesión.
+_esquema_bearer_opcional = HTTPBearer(auto_error=False)
 
 
 def obtener_usuario_actual(
@@ -36,3 +40,21 @@ def obtener_usuario_actual(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no válido")
 
     return usuario
+
+
+def obtener_usuario_opcional(
+    credenciales: HTTPAuthorizationCredentials | None = Depends(_esquema_bearer_opcional),
+    db: Session = Depends(get_db),
+) -> Usuario | None:
+    """Igual que la anterior, pero devuelve None en vez de rechazar.
+
+    Para endpoints que aceptan dos formas de identificarse. Nunca la uses
+    en una ruta que solo admita sesión: ahí un None silencioso convertiría
+    una ruta protegida en pública.
+    """
+    if not credenciales:
+        return None
+    try:
+        return obtener_usuario_actual(credenciales, db)
+    except HTTPException:
+        return None

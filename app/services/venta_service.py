@@ -5,12 +5,19 @@ from app.core.fechas import hoy_local, ultimos_dias, sumar_dias
 from app.repositories import producto_repository, venta_repository, cliente_repository
 
 
-def _resolver_producto(db: Session, usuario_id: str, nombre: str | None, codigo_barras: str | None):
-    """Encuentra el producto por código de barras o, si no, por nombre.
+def _resolver_producto(db: Session, usuario_id: str, nombre: str | None,
+                       codigo_barras: str | None, producto_id: str | None = None):
+    """Encuentra el producto por id, por código de barras o por nombre.
 
-    El código manda cuando viene: es un identificador exacto, mientras que
-    el nombre depende de cómo lo escribió el tendero.
+    En ese orden de preferencia: el id es exacto, el código también, y el
+    nombre depende de cómo lo escribió el tendero.
     """
+    if producto_id:
+        producto = producto_repository.obtener_por_id(db, usuario_id, producto_id)
+        if not producto:
+            raise NoEncontrado("Producto no encontrado")
+        return producto
+
     if codigo_barras:
         producto = producto_repository.obtener_por_codigo_barras(db, usuario_id, codigo_barras)
         if not producto:
@@ -71,7 +78,8 @@ def vender(
     acumulado: dict[str, dict] = {}
     for item in items:
         producto = _resolver_producto(
-            db, usuario_id, item.get("nombre_producto"), item.get("codigo_barras")
+            db, usuario_id, item.get("nombre_producto"), item.get("codigo_barras"),
+            item.get("producto_id"),
         )
         cantidad = item["cantidad"]
         if producto.id in acumulado:

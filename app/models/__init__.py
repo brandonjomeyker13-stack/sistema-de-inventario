@@ -28,6 +28,7 @@ from app.models.producto import Producto
 from app.models.venta import Venta
 from app.models.venta_item import VentaItem
 from app.models.abono import Abono
+from app.models.canasta import Canasta, CanastaItem
 from app.models.sesion import Sesion
 from app.models.token_verificacion import TokenVerificacion
 
@@ -40,6 +41,8 @@ __all__ = [
     "Venta",
     "VentaItem",
     "Abono",
+    "Canasta",
+    "CanastaItem",
     "Sesion",
     "TokenVerificacion",
 ]
