@@ -44,13 +44,21 @@ def abrir(
 def ver(
     canasta_id: str,
     x_canasta_token: str | None = Header(default=None),
+    token: str | None = None,
     usuario_actual: Usuario | None = Depends(obtener_usuario_opcional),
     db: Session = Depends(get_db),
 ):
     """Estado actual. Lo consulta el PC en bucle, y también el celular
-    para mostrar lo que lleva escaneado."""
+    para mostrar lo que lleva escaneado.
+
+    Al ser GET no hay cuerpo donde meter el token, así que aquí sí se
+    acepta como parámetro de consulta. Es la única ruta donde el token
+    puede acabar en un log de acceso; el celular puede evitarlo del todo
+    porque POST /items ya devuelve la canasta entera.
+    """
     return canasta_service.ver(
-        db, canasta_id, usuario_actual.id if usuario_actual else None, x_canasta_token
+        db, canasta_id, usuario_actual.id if usuario_actual else None,
+        x_canasta_token or token,
     )
 
 
@@ -67,8 +75,11 @@ def agregar_item(
     Devuelve la canasta entera, no solo el ítem: así el celular puede
     mostrar el estado sin una segunda petición.
     """
+    # La cabecera manda; el cuerpo es el plan B para cuando un proxy se
+    # come las cabeceras personalizadas.
+    token = x_canasta_token or datos.token
     return canasta_service.agregar(
-        db, canasta_id, usuario_actual.id if usuario_actual else None, x_canasta_token,
+        db, canasta_id, usuario_actual.id if usuario_actual else None, token,
         datos.codigo_barras, datos.nombre_producto, datos.producto_id, datos.cantidad,
     )
 

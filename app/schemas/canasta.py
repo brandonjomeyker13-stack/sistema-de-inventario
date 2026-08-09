@@ -11,6 +11,13 @@ class CanastaItemAgregar(BaseModel):
     producto_id: str | None = None
     cantidad: int = Field(default=1, gt=0)
 
+    # El token de emparejamiento también se acepta aquí, no solo en la
+    # cabecera. Motivo práctico: las peticiones del frontend pasan por el
+    # proxy de Lovable, y un proxy que reenvía solo cabeceras conocidas se
+    # come las personalizadas sin avisar. En el cuerpo siempre llega.
+    # No se pone en la URL a propósito: ahí acabaría en los logs.
+    token: str | None = None
+
     @model_validator(mode="after")
     def exige_identificador(self):
         if not (self.codigo_barras or self.nombre_producto or self.producto_id):

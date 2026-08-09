@@ -18,7 +18,7 @@ revisar antes de cobrar.
 
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ErrorNegocio, NoEncontrado
+from app.core.exceptions import ErrorNegocio, NoEncontrado, CredencialesInvalidas
 from app.repositories import canasta_repository, producto_repository
 from app.services import venta_service
 
@@ -44,13 +44,27 @@ def _autorizar(db: Session, canasta_id: str, usuario_id: str | None, token: str 
         # Cobrar, descartar: solo el tendero con su sesión.
         raise NoEncontrado("Canasta no encontrada")
 
-    # El token debe corresponder a ESTA canasta. Se compara con
-    # secrets.compare_digest para no filtrar información por el tiempo
-    # que tarda la comparación.
-    if token and canasta.token_celular and _iguales(token, canasta.token_celular):
-        return canasta
+    if token:
+        # compare_digest para no filtrar información por el tiempo que
+        # tarda la comparación.
+        if canasta.token_celular and _iguales(token, canasta.token_celular):
+            return canasta
+        raise NoEncontrado("Canasta no encontrada")
 
-    raise NoEncontrado("Canasta no encontrada")
+    if usuario_id:
+        # Hay sesión, pero de otro negocio. No le falta credencial: le
+        # falta permiso. Un 404 no le confirma que esta canasta exista.
+        raise NoEncontrado("Canasta no encontrada")
+
+    # No llegó NADA: ni sesión ni token. Se distingue del caso anterior a
+    # propósito. No revela nada de la canasta (es un error del cliente,
+    # no una pista), y sin este mensaje depurar por qué el celular no
+    # entra es adivinar: un proxy que se come la cabecera personalizada
+    # se ve exactamente igual que un token equivocado.
+    raise CredencialesInvalidas(
+        "No llegó el token de emparejamiento. La página del escáner debe mandarlo "
+        "en la cabecera X-Canasta-Token o en el campo 'token' del cuerpo."
+    )
 
 
 def _iguales(a: str, b: str) -> bool:
