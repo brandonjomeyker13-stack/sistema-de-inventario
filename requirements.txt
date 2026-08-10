@@ -9,6 +9,8 @@ PyJWT
 psycopg2-binary
 python-dotenv
 email-validator
+# Cliente HTTP para hablar con Groq desde el backend.
+httpx
 # zoneinfo lee la base de datos de husos horarios del sistema operativo.
 # Las imágenes slim de Linux a veces no la traen; este paquete la incluye
 # en el propio entorno de Python para que no dependa del contenedor.

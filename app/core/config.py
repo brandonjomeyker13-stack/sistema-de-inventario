@@ -42,6 +42,21 @@ class Settings(BaseSettings):
     # fallará con un error claro hasta que lo agregues en Render.
     GOOGLE_CLIENT_ID: str | None = None
 
+    # Asistente de IA. La clave es de Groq (console.groq.com). Queda
+    # opcional: sin ella la API arranca igual y solo el endpoint del
+    # asistente responde que no está configurado.
+    GROQ_API_KEY: str | None = None
+
+    # El modelo va en variable de entorno y NO fijo en el código a
+    # propósito: Groq deprecó los Llama en junio de 2026 y volverá a
+    # rotar modelos. Cuando pase, se cambia esta variable en Render sin
+    # tocar el código ni desplegar.
+    GROQ_MODEL: str = "openai/gpt-oss-20b"
+    GROQ_URL: str = "https://api.groq.com/openai/v1/chat/completions"
+    # Groq responde rápido; si tarda más que esto, algo va mal y es
+    # preferible un error claro que un tendero mirando una ruedita.
+    LLM_TIMEOUT_SEGUNDOS: int = 25
+
     # Zona horaria del negocio. Determina qué se considera "hoy" al
     # registrar una venta y al cortar los reportes diarios. NO se puede
     # dejar que esto lo decida el servidor: Render corre en UTC, así que

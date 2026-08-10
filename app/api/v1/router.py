@@ -11,7 +11,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     auth, usuario, producto, venta, cliente, categoria, canasta, analitica, sector,
-    movimiento,
+    movimiento, asistente,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -26,3 +26,4 @@ router.include_router(canasta.router)
 router.include_router(analitica.router)
 router.include_router(sector.router)
 router.include_router(movimiento.router)
+router.include_router(asistente.router)
