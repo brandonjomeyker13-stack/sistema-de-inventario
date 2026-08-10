@@ -1,22 +1,50 @@
-fastapi
-uvicorn[standard]
-sqlalchemy
-alembic
-pydantic
-pydantic-settings
-bcrypt
-PyJWT
-psycopg2-binary
-python-dotenv
-email-validator
-# Cliente HTTP para hablar con Groq y con Resend desde el backend.
-httpx
+# Versiones fijadas con `~=`, que permite parches pero no versiones
+# nuevas. Es decir: 0.140.1 sí (corrige errores), 0.141.0 no (puede
+# cambiar comportamiento).
+#
+# Sin fijar, Render instala lo último que exista el día del despliegue, y
+# un deploy que ayer funcionaba se cae hoy sin haber tocado nada. Es el
+# mismo tipo de sorpresa que dio Python 3.14.
+#
+# Estas son las versiones con las que el proyecto está probado. Para
+# actualizarlas: `pip install -U -r requirements.txt`, correr las
+# pruebas, y si pasan, subir los números aquí.
+
+fastapi~=0.140.0
+uvicorn[standard]~=0.51.0
+
+# Base de datos
+sqlalchemy~=2.0.51
+alembic~=1.19.1
+psycopg2-binary~=2.9.12
+
+# Configuración y validación
+pydantic~=2.13.4
+pydantic-settings~=2.14.2
+python-dotenv~=1.2.2
+# Lo usa pydantic por debajo para el tipo EmailStr.
+email-validator~=2.3.0
+
+# Autenticación
+bcrypt~=5.0.0
+PyJWT~=2.13.0
 # Verificación de los ID token de Google. Se usa la librería oficial y no
 # se valida el token a mano: comprobar firma, emisor, audiencia y
 # caducidad correctamente es justo donde se cuelan los fallos de
 # seguridad, y esto ya lo resuelve.
-google-auth
+#
+# El extra [requests] NO es opcional para nosotros: google-auth no instala
+# `requests` por su cuenta, pero el transporte que usamos para descargar
+# las claves públicas de Google (google.auth.transport.requests) sí lo
+# necesita. Sin el extra, la app importa bien en cualquier máquina donde
+# `requests` esté instalada por otra cosa, y revienta al arrancar en un
+# entorno limpio como el de Render.
+google-auth[requests]~=2.52.0
+
+# Cliente HTTP para hablar con Groq (asistente) y Resend (correos).
+httpx~=0.28.1
+
 # zoneinfo lee la base de datos de husos horarios del sistema operativo.
 # Las imágenes slim de Linux a veces no la traen; este paquete la incluye
 # en el propio entorno de Python para que no dependa del contenedor.
-tzdata
+tzdata~=2026.2
