@@ -37,7 +37,14 @@ def obtener_activa_por_hash(db: Session, token_hash: str) -> Sesion | None:
     sesion = db.query(Sesion).filter(Sesion.token_hash == token_hash).first()
     if not sesion or sesion.revocado:
         return None
-    if sesion.expira_en < datetime.now(timezone.utc):
+
+    # Se asume UTC cuando la fecha viene sin zona: se guardó en UTC, pero
+    # no todos los motores la devuelven con tzinfo (SQLite no la guarda) y
+    # comparar naive contra aware lanza TypeError.
+    expira = sesion.expira_en
+    if expira.tzinfo is None:
+        expira = expira.replace(tzinfo=timezone.utc)
+    if expira < datetime.now(timezone.utc):
         return None
     return sesion
 
@@ -45,3 +52,20 @@ def obtener_activa_por_hash(db: Session, token_hash: str) -> Sesion | None:
 def revocar(db: Session, sesion: Sesion) -> None:
     sesion.revocado = True
     db.commit()
+
+
+def revocar_todas(db: Session, usuario_id: str) -> int:
+    """Cierra todas las sesiones abiertas de un usuario.
+
+    Se usa al restablecer la contraseña. Es la parte que de verdad
+    importa de ese flujo: si alguien entró a tu cuenta, cambiar la
+    contraseña sin cerrar sus sesiones no lo echa — su refresh token
+    sigue sirviendo durante días.
+    """
+    afectadas = (
+        db.query(Sesion)
+        .filter(Sesion.usuario_id == usuario_id, Sesion.revocado.is_(False))
+        .update({Sesion.revocado: True})
+    )
+    db.commit()
+    return afectadas

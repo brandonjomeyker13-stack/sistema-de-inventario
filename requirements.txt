@@ -9,8 +9,13 @@ PyJWT
 psycopg2-binary
 python-dotenv
 email-validator
-# Cliente HTTP para hablar con Groq desde el backend.
+# Cliente HTTP para hablar con Groq y con Resend desde el backend.
 httpx
+# Verificación de los ID token de Google. Se usa la librería oficial y no
+# se valida el token a mano: comprobar firma, emisor, audiencia y
+# caducidad correctamente es justo donde se cuelan los fallos de
+# seguridad, y esto ya lo resuelve.
+google-auth
 # zoneinfo lee la base de datos de husos horarios del sistema operativo.
 # Las imágenes slim de Linux a veces no la traen; este paquete la incluye
 # en el propio entorno de Python para que no dependa del contenedor.

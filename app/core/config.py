@@ -42,6 +42,27 @@ class Settings(BaseSettings):
     # fallará con un error claro hasta que lo agregues en Render.
     GOOGLE_CLIENT_ID: str | None = None
 
+    # Envío de correo (Resend: resend.com). Opcional — sin clave, el
+    # registro sigue funcionando y solo se salta el correo, para no
+    # bloquear el desarrollo por una integración externa.
+    RESEND_API_KEY: str | None = None
+    # Debe ser una dirección de un dominio VERIFICADO en Resend. Con un
+    # gmail.com no funciona: el proveedor exige demostrar que el dominio
+    # es tuyo antes de dejarte enviar desde él.
+    #
+    # El valor por defecto es el remitente de pruebas de Resend, que
+    # funciona sin verificar ningún dominio — pero SOLO envía al correo
+    # con el que se creó la cuenta de Resend. Se eligió así a propósito:
+    # un default que apunte a un dominio propio sin verificar haría que
+    # los correos fallaran en silencio (enviar() devuelve False y el
+    # registro sigue adelante), y verías cuentas creándose sin que llegue
+    # nada, sin ningún error visible.
+    CORREO_REMITENTE: str = "StockTrack <onboarding@resend.dev>"
+
+    # Dónde vive el frontend. Los enlaces de los correos apuntan aquí, no
+    # a la API: el usuario debe aterrizar en una pantalla, no en un JSON.
+    URL_FRONTEND: str = "https://stocktrack-ai.lovable.app"
+
     # Asistente de IA. La clave es de Groq (console.groq.com). Queda
     # opcional: sin ella la API arranca igual y solo el endpoint del
     # asistente responde que no está configurado.

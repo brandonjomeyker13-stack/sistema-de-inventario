@@ -2,4 +2,7 @@ venvenv/
 __pycache__/
 *.pyc
 .env*
+# La plantilla SÍ va al repo: no tiene secretos y es lo que le dice a
+# quien clone qué variables hacen falta.
+!.env.ejemplo
 .vscode/

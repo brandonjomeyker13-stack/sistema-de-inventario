@@ -18,7 +18,9 @@ def obtener_por_id(db: Session, usuario_id: str) -> Usuario | None:
     return db.query(Usuario).filter(Usuario.id == usuario_id).first()
 
 
-def crear(db: Session, email: str, password_hash: str, nombre_negocio: str) -> Usuario:
+def crear(db: Session, email: str, password_hash: str | None, nombre_negocio: str) -> Usuario:
+    """password_hash puede ser None: las cuentas creadas con Google no
+    tienen contraseña hasta que su dueño decide ponerle una."""
     usuario = Usuario(
         email=email.lower().strip(),
         password_hash=password_hash,

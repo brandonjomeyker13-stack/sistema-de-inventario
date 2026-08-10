@@ -32,6 +32,7 @@ from app.models.canasta import Canasta, CanastaItem
 from app.models.movimiento import MovimientoInventario
 from app.models.sesion import Sesion
 from app.models.token_verificacion import TokenVerificacion
+from app.models.token_password import TokenPassword
 
 __all__ = [
     "Base",
@@ -47,4 +48,5 @@ __all__ = [
     "MovimientoInventario",
     "Sesion",
     "TokenVerificacion",
+    "TokenPassword",
 ]

@@ -34,6 +34,24 @@ services:
         value: "30"
       - key: CORS_ORIGINS
         sync: false
+      # Todas estas son secretas: se ponen en el dashboard de Render, no
+      # en este archivo. Ver .env.ejemplo para saber de dónde sale cada una.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CORREO_REMITENTE
+        sync: false
+      - key: URL_FRONTEND
+        value: https://stocktrack-ai.lovable.app
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
+      # Empieza en false. Actívalo solo cuando confirmes que los correos
+      # llegan: si no, nadie podrá iniciar sesión.
+      - key: REQUERIR_EMAIL_VERIFICADO
+        value: "false"
       # Sin esto el servidor usaría UTC y las ventas de la noche caerían
       # en el día siguiente. Ver app/core/fechas.py.
       - key: ZONA_HORARIA

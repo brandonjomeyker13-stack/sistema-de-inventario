@@ -29,7 +29,16 @@ def obtener_valido(db: Session, token: str) -> TokenVerificacion | None:
     registro = db.query(TokenVerificacion).filter(TokenVerificacion.token == token).first()
     if not registro or registro.usado:
         return None
-    if registro.expira_en < datetime.now(timezone.utc):
+
+    # `expira_en` se guardó en UTC, pero no todos los motores devuelven la
+    # zona horaria al leerlo (SQLite no la guarda). Comparar un datetime
+    # sin zona contra uno con zona lanza TypeError, así que se asume UTC
+    # cuando falta — que es en lo que se escribió.
+    expira = registro.expira_en
+    if expira.tzinfo is None:
+        expira = expira.replace(tzinfo=timezone.utc)
+
+    if expira < datetime.now(timezone.utc):
         return None
     return registro
 

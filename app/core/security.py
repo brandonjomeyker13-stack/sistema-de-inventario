@@ -53,6 +53,13 @@ def _crear_token(usuario_id: str, expira_en: timedelta, tipo: str) -> str:
         "sub": usuario_id,
         "tipo": tipo,
         "exp": datetime.now(timezone.utc) + expira_en,
+        # Identificador único del token. Sin esto, dos inicios de sesión
+        # del mismo usuario en el MISMO SEGUNDO producen exactamente el
+        # mismo JWT: el payload solo cambiaba con `exp`, que tiene
+        # precisión de segundos. Y como `sesiones.token_hash` es único,
+        # el segundo login reventaba con un 500 — un doble clic en el
+        # botón de entrar bastaba para provocarlo.
+        "jti": secrets.token_urlsafe(16),
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
