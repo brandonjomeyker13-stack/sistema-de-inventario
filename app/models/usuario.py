@@ -32,6 +32,16 @@ class Usuario(Base):
     # datos que no capturas hoy no se recuperan después.
     sector = Column(String(50), nullable=True, index=True)
     activo = Column(Boolean, nullable=False, default=True)
+
+    # Hasta cuándo puede usar la aplicación completa. Se edita a mano en
+    # la base cuando alguien paga (por ahora no hay cobro automático).
+    #
+    # Es una FECHA y no un booleano a propósito: con `es_premium = true`
+    # habría que acordarse de apagarlo cada mes, cliente por cliente, y el
+    # día que se olvide alguien usa gratis medio año. Una fecha vence sola.
+    #
+    # NULL = sin suscripción (cuenta vencida). Ver app/api/deps.py.
+    suscripcion_hasta = Column(String(10), nullable=True)
     # Arranca en False: quien se registra con correo y contraseña tiene
     # que confirmar que ese correo es suyo. Estuvo en True mientras no
     # había forma de mandar el correo — ahora sí la hay.

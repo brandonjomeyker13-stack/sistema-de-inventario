@@ -19,6 +19,13 @@ class UsuarioOut(BaseModel):
     email: EmailStr
     nombre_negocio: str
     sector: str | None = None
+    # Fecha 'YYYY-MM-DD' hasta la que la cuenta puede usar la aplicación
+    # completa. None = sin suscripción.
+    suscripcion_hasta: str | None = None
+    # Calculados, para que el frontend no tenga que comparar fechas ni
+    # decidir qué zona horaria usar — la del negocio, no la del navegador.
+    suscripcion_activa: bool = True
+    dias_restantes: int = 0
 
 
 class UsuarioActualizar(BaseModel):

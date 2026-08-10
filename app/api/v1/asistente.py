@@ -16,12 +16,18 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.api.deps import obtener_usuario_actual
+from app.api.deps import obtener_usuario_actual, exigir_suscripcion_activa
 from app.models.usuario import Usuario
 from app.schemas.asistente import PreguntaCrear, RespuestaAsistente
 from app.services import asistente_service
 
-router = APIRouter(prefix="/asistente", tags=["Asistente"])
+# El asistente también exige suscripción: cada pregunta cuesta dinero real
+# en el proveedor de IA, así que no puede quedar abierto a cuentas vencidas.
+router = APIRouter(
+    prefix="/asistente",
+    tags=["Asistente"],
+    dependencies=[Depends(exigir_suscripcion_activa)],
+)
 
 
 @router.post("/preguntar", response_model=RespuestaAsistente)

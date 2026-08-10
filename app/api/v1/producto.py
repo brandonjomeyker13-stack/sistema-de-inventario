@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.api.deps import obtener_usuario_actual
+from app.api.deps import obtener_usuario_actual, exigir_suscripcion_activa
 from app.models.usuario import Usuario
 from app.schemas.producto import ProductoCrear, ProductoActualizar, ProductoOut
 from app.services import product_service
@@ -66,7 +66,7 @@ def buscar_por_codigo(
 @router.post("", response_model=ProductoOut, status_code=status.HTTP_201_CREATED)
 def agregar(
     datos: ProductoCrear,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     return product_service.agregar(
@@ -79,7 +79,7 @@ def agregar(
 def editar(
     producto_id: str,
     datos: ProductoActualizar,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     return product_service.editar(
@@ -91,7 +91,7 @@ def editar(
 @router.delete("/{producto_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar(
     producto_id: str,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     product_service.eliminar(db, usuario_actual.id, producto_id)

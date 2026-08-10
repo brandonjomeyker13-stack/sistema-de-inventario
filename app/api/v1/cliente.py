@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.api.deps import obtener_usuario_actual
+from app.api.deps import obtener_usuario_actual, exigir_suscripcion_activa
 from app.models.usuario import Usuario
 from app.schemas.cliente import (
     ClienteCrear, ClienteActualizar, ClienteOut, DeudorOut, DetalleFiadosOut,
@@ -32,7 +32,7 @@ def listar(
 @router.post("/clientes", response_model=ClienteOut, status_code=status.HTTP_201_CREATED)
 def agregar(
     datos: ClienteCrear,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     return cliente_service.agregar(db, usuario_actual.id, datos.nombre, datos.telefono, datos.notas,
@@ -43,7 +43,7 @@ def agregar(
 def editar(
     cliente_id: str,
     datos: ClienteActualizar,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     return cliente_service.editar(
@@ -55,7 +55,7 @@ def editar(
 @router.delete("/clientes/{cliente_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar(
     cliente_id: str,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     """Falla con 400 si el cliente todavía debe algo: borrarlo escondería
@@ -89,7 +89,7 @@ def detalle(
 def abonar(
     venta_id: str,
     datos: AbonoCrear,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     """Registra un pago parcial contra una venta fiada. Rechaza abonos

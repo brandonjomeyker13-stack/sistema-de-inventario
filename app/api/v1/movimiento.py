@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.api.deps import obtener_usuario_actual
+from app.api.deps import obtener_usuario_actual, exigir_suscripcion_activa
 from app.models.movimiento import TIPOS
 from app.models.usuario import Usuario
 from app.schemas.movimiento import EntradaCrear, MermaCrear, AjusteCrear, MovimientoOut
@@ -50,7 +50,7 @@ def historial(
 @router.post("/entrada", response_model=MovimientoOut, status_code=status.HTTP_201_CREATED)
 def entrada(
     datos: EntradaCrear,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     """Llegó mercancía del proveedor. Suma al stock."""
@@ -63,7 +63,7 @@ def entrada(
 @router.post("/merma", response_model=MovimientoOut, status_code=status.HTTP_201_CREATED)
 def merma(
     datos: MermaCrear,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     """Se dañó, venció o se rompió. Resta del stock."""
@@ -75,7 +75,7 @@ def merma(
 @router.post("/ajuste", response_model=MovimientoOut, status_code=status.HTTP_201_CREATED)
 def ajuste(
     datos: AjusteCrear,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     """Conteo físico. Se manda el stock REAL contado, no la diferencia."""

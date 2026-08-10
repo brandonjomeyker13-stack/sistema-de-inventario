@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.api.deps import obtener_usuario_actual, obtener_usuario_opcional
+from app.api.deps import obtener_usuario_actual, exigir_suscripcion_activa, obtener_usuario_opcional
 from app.models.usuario import Usuario
 from app.schemas.canasta import (
     CanastaOut, CanastaAbiertaOut, CanastaItemAgregar, CanastaCantidad, CanastaCobrar,
@@ -35,7 +35,7 @@ router = APIRouter(prefix="/canastas", tags=["Canasta compartida"])
 @router.post("", response_model=CanastaAbiertaOut, status_code=status.HTTP_201_CREATED)
 def abrir(
     datos: CanastaAbrir | None = None,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     """Abre una canasta en curso y devuelve el token que va dentro del QR.
@@ -154,7 +154,7 @@ def quitar_item(
 def cobrar(
     canasta_id: str,
     datos: CanastaCobrar,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     """Convierte la canasta en venta: descuenta stock y cierra el carrito.
@@ -173,7 +173,7 @@ def cobrar(
 def recibir(
     canasta_id: str,
     datos: CanastaRecibir | None = None,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     """Mete al inventario todo lo escaneado en una canasta de inventario.
@@ -194,7 +194,7 @@ def recibir(
 @router.delete("/{canasta_id}", status_code=status.HTTP_204_NO_CONTENT)
 def descartar(
     canasta_id: str,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     """El cliente se arrepintió. No deja rastro: la canasta nunca fue venta."""

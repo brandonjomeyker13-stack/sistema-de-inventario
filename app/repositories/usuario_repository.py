@@ -7,6 +7,8 @@ de app/services/); solo saben leer y escribir filas.
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.core.fechas import sumar_dias
 from app.models.usuario import Usuario
 
 
@@ -25,6 +27,9 @@ def crear(db: Session, email: str, password_hash: str | None, nombre_negocio: st
         email=email.lower().strip(),
         password_hash=password_hash,
         nombre_negocio=nombre_negocio.strip(),
+        # Periodo de prueba. Sin esto la cuenta nacería vencida y no
+        # podría ni registrar su primer producto.
+        suscripcion_hasta=sumar_dias(settings.DIAS_DE_PRUEBA),
     )
     db.add(usuario)
     db.commit()

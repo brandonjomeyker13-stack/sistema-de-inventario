@@ -22,3 +22,15 @@ class NoEncontrado(Exception):
 
 class CredencialesInvalidas(Exception):
     """Login fallido o token inválido/expirado. Se traduce a HTTP 401."""
+
+
+class SuscripcionVencida(Exception):
+    """La cuenta existe y la sesión es válida, pero la suscripción caducó.
+    Se traduce a HTTP 402 (Payment Required).
+
+    Código propio y no un 400 o un 403 a propósito: el frontend tiene que
+    poder distinguirlo sin leer el texto del mensaje. Ante un 402 muestra
+    la pantalla de renovación; ante un 400 muestra un aviso y ya. Si
+    fueran el mismo código, habría que comparar cadenas para decidir, y
+    eso se rompe en cuanto alguien reescriba el mensaje.
+    """

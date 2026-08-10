@@ -11,7 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.core.exceptions import ErrorNegocio, NoEncontrado, CredencialesInvalidas
+from app.core.exceptions import (
+    ErrorNegocio, NoEncontrado, CredencialesInvalidas, SuscripcionVencida,
+)
 from app.api.v1.router import router as api_v1_router
 
 app = FastAPI(title="NorBox API", version="1.0.0")
@@ -44,6 +46,13 @@ def manejar_no_encontrado(request: Request, exc: NoEncontrado):
 @app.exception_handler(CredencialesInvalidas)
 def manejar_credenciales_invalidas(request: Request, exc: CredencialesInvalidas):
     return JSONResponse(status_code=401, content={"detalle": str(exc)})
+
+
+@app.exception_handler(SuscripcionVencida)
+def manejar_suscripcion_vencida(request: Request, exc: SuscripcionVencida):
+    # 402 Payment Required. Código propio para que el frontend distinga
+    # "hay que renovar" de un error de validación sin leer el mensaje.
+    return JSONResponse(status_code=402, content={"detalle": str(exc)})
 
 
 app.include_router(api_v1_router)

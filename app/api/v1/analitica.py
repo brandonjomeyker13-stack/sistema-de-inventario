@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.api.deps import obtener_usuario_actual
+from app.api.deps import obtener_usuario_actual, exigir_suscripcion_activa
 from app.models.usuario import Usuario
 from app.schemas.analitica import (
     ResumenAnaliticaOut, ProductoRankingOut, CapitalParadoOut,
@@ -19,7 +19,15 @@ from app.schemas.analitica import (
 )
 from app.services import analitica_service
 
-router = APIRouter(prefix="/analitica", tags=["Análisis"])
+# Todo el análisis exige suscripción al día: es la parte que se vende, no
+# el registro de ventas. Va en el router y no endpoint por endpoint porque
+# aquí no hay excepciones — si mañana se agrega otra ruta, queda protegida
+# sin que nadie tenga que acordarse.
+router = APIRouter(
+    prefix="/analitica",
+    tags=["Análisis"],
+    dependencies=[Depends(exigir_suscripcion_activa)],
+)
 
 
 @router.get("/resumen", response_model=ResumenAnaliticaOut)

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.api.deps import obtener_usuario_actual
+from app.api.deps import obtener_usuario_actual, exigir_suscripcion_activa
 from app.core.fechas import hoy_local
 from app.models.usuario import Usuario
 from app.schemas.venta import (
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/ventas", tags=["Ventas"])
 @router.post("", response_model=VentaOut, status_code=status.HTTP_201_CREATED)
 def vender(
     datos: VentaCrear,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     """Registra una venta de uno o varios productos.
@@ -85,7 +85,7 @@ def ganancia_hoy(
 @router.delete("/{venta_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar(
     venta_id: str,
-    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     venta_service.eliminar_venta(db, usuario_actual.id, venta_id)

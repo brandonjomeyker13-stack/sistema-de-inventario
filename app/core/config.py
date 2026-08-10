@@ -78,6 +78,12 @@ class Settings(BaseSettings):
     # preferible un error claro que un tendero mirando una ruedita.
     LLM_TIMEOUT_SEGUNDOS: int = 25
 
+    # Días de prueba al crear una cuenta nueva. Sin esto, una cuenta
+    # recién creada nacería vencida y no podría ni registrar su primer
+    # producto. El cobro se controla a mano por ahora: se edita
+    # `usuarios.suscripcion_hasta` en la base cuando alguien paga.
+    DIAS_DE_PRUEBA: int = 30
+
     # Zona horaria del negocio. Determina qué se considera "hoy" al
     # registrar una venta y al cortar los reportes diarios. NO se puede
     # dejar que esto lo decida el servidor: Render corre en UTC, así que
