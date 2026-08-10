@@ -31,7 +31,9 @@ def actualizar_perfil(
     usuario_actual: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    return usuario_service.actualizar_perfil(db, usuario_actual.id, datos.nombre_negocio)
+    return usuario_service.actualizar_perfil(
+        db, usuario_actual.id, datos.nombre_negocio, datos.sector
+    )
 
 
 @router.put("/yo/password", status_code=status.HTTP_204_NO_CONTENT)

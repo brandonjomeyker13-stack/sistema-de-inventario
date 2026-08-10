@@ -30,11 +30,12 @@ def obtener_perfil(db: Session, usuario_id: str):
     return usuario
 
 
-def actualizar_perfil(db: Session, usuario_id: str, nombre_negocio: str):
+def actualizar_perfil(db: Session, usuario_id: str, nombre_negocio: str,
+                      sector: str | None = None):
     usuario = usuario_repository.obtener_por_id(db, usuario_id)
     if not usuario:
         raise NoEncontrado("Usuario no encontrado")
-    return usuario_repository.actualizar_nombre_negocio(db, usuario, nombre_negocio)
+    return usuario_repository.actualizar_perfil(db, usuario, nombre_negocio, sector)
 
 
 def cambiar_password(db: Session, usuario_id: str, password_actual: str, password_nueva: str):

@@ -30,8 +30,14 @@ def crear(db: Session, email: str, password_hash: str, nombre_negocio: str) -> U
     return usuario
 
 
-def actualizar_nombre_negocio(db: Session, usuario: Usuario, nombre_negocio: str) -> Usuario:
+def actualizar_perfil(db: Session, usuario: Usuario, nombre_negocio: str,
+                      sector: str | None = None) -> Usuario:
     usuario.nombre_negocio = nombre_negocio.strip()
+    # Solo se toca el sector si viene algo. Mandar el perfil sin sector no
+    # debe borrar el que ya estaba: el frontend edita el nombre del
+    # negocio desde varios sitios y no siempre incluye este campo.
+    if sector is not None:
+        usuario.sector = sector
     db.commit()
     db.refresh(usuario)
     return usuario

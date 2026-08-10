@@ -22,6 +22,11 @@ class Usuario(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     nombre_negocio = Column(String(255), nullable=False)
+    # Sector del negocio (ver app/core/sectores.py). Nullable porque las
+    # cuentas que ya existen no lo tienen y no se les puede inventar. Se
+    # recoge desde ya aunque el análisis comparado todavía no exista: los
+    # datos que no capturas hoy no se recuperan después.
+    sector = Column(String(50), nullable=True, index=True)
     activo = Column(Boolean, nullable=False, default=True)
     email_verificado = Column(Boolean, nullable=False, default=True)
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
