@@ -24,6 +24,16 @@ class CredencialesInvalidas(Exception):
     """Login fallido o token inválido/expirado. Se traduce a HTTP 401."""
 
 
+class CorreoSinVerificar(Exception):
+    """Se acabó el plazo para confirmar el correo. Se traduce a HTTP 403.
+
+    Código distinto del 402 de la suscripción a propósito: son dos
+    problemas con dos soluciones distintas, y el frontend tiene que poder
+    mandar a cada uno a su pantalla (reenviar el correo / renovar el plan)
+    sin leer el texto del mensaje.
+    """
+
+
 class SuscripcionVencida(Exception):
     """La cuenta existe y la sesión es válida, pero la suscripción caducó.
     Se traduce a HTTP 402 (Payment Required).

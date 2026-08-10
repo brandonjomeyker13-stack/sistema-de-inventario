@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.exceptions import (
     ErrorNegocio, NoEncontrado, CredencialesInvalidas, SuscripcionVencida,
+    CorreoSinVerificar,
 )
 from app.api.v1.router import router as api_v1_router
 
@@ -46,6 +47,13 @@ def manejar_no_encontrado(request: Request, exc: NoEncontrado):
 @app.exception_handler(CredencialesInvalidas)
 def manejar_credenciales_invalidas(request: Request, exc: CredencialesInvalidas):
     return JSONResponse(status_code=401, content={"detalle": str(exc)})
+
+
+@app.exception_handler(CorreoSinVerificar)
+def manejar_correo_sin_verificar(request: Request, exc: CorreoSinVerificar):
+    # 403 y no 402: el problema no es el dinero, y la pantalla que hay que
+    # mostrar es otra (reenviar el enlace, no renovar el plan).
+    return JSONResponse(status_code=403, content={"detalle": str(exc)})
 
 
 @app.exception_handler(SuscripcionVencida)

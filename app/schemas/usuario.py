@@ -26,6 +26,14 @@ class UsuarioOut(BaseModel):
     # decidir qué zona horaria usar — la del negocio, no la del navegador.
     suscripcion_activa: bool = True
     dias_restantes: int = 0
+    # Verificación del correo. Es una condición SEPARADA de la
+    # suscripción: alguien puede haber pagado sin verificar, y al revés.
+    email_verificado: bool = False
+    # Días que le quedan para confirmar antes de pasar a solo lectura.
+    # 0 si ya verificó o si se le acabó el plazo.
+    dias_para_verificar: int = 0
+    # Resultado de las dos condiciones juntas: si puede registrar ventas.
+    puede_registrar: bool = True
 
 
 class UsuarioActualizar(BaseModel):

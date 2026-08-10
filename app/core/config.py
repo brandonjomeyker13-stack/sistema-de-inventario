@@ -91,6 +91,13 @@ class Settings(BaseSettings):
     # día siguiente. Ver app/core/fechas.py.
     ZONA_HORARIA: str = "America/Bogota"
 
+    # Días de margen para confirmar el correo antes de que la cuenta pase
+    # a solo lectura. No se bloquea desde el primer minuto a propósito:
+    # quien acaba de registrarse quiere probar la aplicación, y obligarlo
+    # a ir a su bandeja antes de ver nada es la forma más rápida de
+    # perderlo. Con unos días de margen prueba, se convence, y verifica.
+    DIAS_GRACIA_VERIFICACION: int = 4
+
     # Mientras estás en testing sin dominio ni proveedor de correo, deja
     # esto en False para poder loguearte sin haber verificado el email.
     # Cuando tengas Resend/SendGrid conectado, cámbialo a True en Render.

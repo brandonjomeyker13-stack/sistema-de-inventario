@@ -113,15 +113,13 @@ def iniciar_sesion(
         raise CredencialesInvalidas("Correo o contraseña incorrectos")
     if not usuario.activo:
         raise CredencialesInvalidas("Esta cuenta está deshabilitada")
-    # El interruptor existía en config pero nadie lo miraba: el login
-    # exigía el correo verificado siempre, y lo que en realidad desactivaba
-    # la verificación era que el campo naciera en True. Ahora manda el
-    # ajuste, que es lo que dice hacer.
-    if settings.REQUERIR_EMAIL_VERIFICADO and not usuario.email_verificado:
-        raise CredencialesInvalidas(
-            "Debes confirmar tu correo antes de entrar. Revisa tu bandeja, "
-            "o pide que te reenviemos el enlace."
-        )
+    # El correo sin verificar YA NO impide entrar. Se comprueba al
+    # escribir (ver app/api/deps.py), con unos días de margen: quien acaba
+    # de registrarse quiere probar la aplicación, y mandarlo a su bandeja
+    # antes de dejarle ver nada es la forma más rápida de perderlo.
+    #
+    # Pasado el plazo la cuenta queda en solo lectura, no fuera. Sigue
+    # entrando y viendo sus datos; lo que no puede es registrar.
 
     access_token = crear_access_token(usuario.id)
     refresh_token = crear_refresh_token(usuario.id)

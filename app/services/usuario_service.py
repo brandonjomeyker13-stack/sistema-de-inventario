@@ -14,7 +14,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.api.deps import suscripcion_activa
+from app.api.deps import suscripcion_activa, verificacion_al_dia, dias_para_verificar
 from app.core.exceptions import ErrorNegocio, NoEncontrado, CredencialesInvalidas
 from app.core.fechas import FORMATO_FECHA, hoy_local
 from app.core.security import hash_password, verificar_password
@@ -48,6 +48,12 @@ def _con_suscripcion(usuario):
     usuario.suscripcion_activa = activa
     # Nunca negativo: "te quedan -5 días" no se lo dices a nadie.
     usuario.dias_restantes = max(restantes, 0)
+
+    verificado = verificacion_al_dia(usuario)
+    usuario.dias_para_verificar = dias_para_verificar(usuario)
+    # Las dos condiciones ya resueltas, para que el frontend no tenga que
+    # combinarlas y arriesgarse a hacerlo distinto en cada pantalla.
+    usuario.puede_registrar = activa and verificado
     return usuario
 
 
