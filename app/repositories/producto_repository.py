@@ -8,6 +8,7 @@ otro, sin importar qué producto_id le manden en la URL.
 
 from sqlalchemy.orm import Session
 
+from app.core.codigos import normalizar
 from app.models.producto import Producto
 
 
@@ -78,7 +79,10 @@ def obtener_por_codigo_barras(db: Session, usuario_id: str, codigo: str) -> Prod
         .filter(
             Producto.usuario_id == usuario_id,
             Producto.eliminado.is_(False),
-            Producto.codigo_barras == codigo.strip(),
+            # Se normaliza también al buscar: si el catálogo guarda el
+            # EAN-13 y el lector manda el UPC-A de 12 dígitos, tienen que
+            # encontrarse igual.
+            Producto.codigo_barras == normalizar(codigo),
         )
         .first()
     )
@@ -88,7 +92,10 @@ def existe_codigo_barras(db: Session, usuario_id: str, codigo: str, excluir_id: 
     query = db.query(Producto).filter(
         Producto.usuario_id == usuario_id,
         Producto.eliminado.is_(False),
-        Producto.codigo_barras == codigo.strip(),
+        # Misma normalización que al buscar: si no, registrar el UPC-A
+        # corto de un producto que ya está guardado como EAN-13 pasaría
+        # el control de duplicados y lo duplicaría.
+        Producto.codigo_barras == normalizar(codigo),
     )
     if excluir_id:
         query = query.filter(Producto.id != excluir_id)
@@ -112,7 +119,11 @@ def crear(
 ) -> Producto:
     producto = Producto(
         usuario_id=usuario_id, nombre=nombre.strip(), cantidad=cantidad, precio=precio, cuanto_costo=costo,
-        codigo_barras=codigo_barras.strip() if codigo_barras else None,
+        # Normalizado también aquí, no solo en el schema: el servicio se
+        # llama desde sitios que no pasan por Pydantic (la recepción de
+        # mercancía, por ejemplo) y el dato guardado tiene que ser
+        # canónico venga de donde venga.
+        codigo_barras=normalizar(codigo_barras),
         categoria_id=categoria_id,
     )
     db.add(producto)
@@ -131,7 +142,7 @@ def actualizar(
     producto.cuanto_costo = costo
     # Cadena vacía se guarda como NULL: si no, el índice único trataría
     # dos productos "sin código" como duplicados y el segundo fallaría.
-    producto.codigo_barras = codigo_barras.strip() if codigo_barras and codigo_barras.strip() else None
+    producto.codigo_barras = normalizar(codigo_barras)
     producto.categoria_id = categoria_id
     db.commit()
     db.refresh(producto)

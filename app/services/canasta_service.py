@@ -24,6 +24,7 @@ vida del token o regenerarlo tras cada cobro.
 
 from sqlalchemy.orm import Session
 
+from app.core.codigos import normalizar, checksum_valido
 from app.core.exceptions import ErrorNegocio, NoEncontrado, CredencialesInvalidas
 from app.models.canasta import PROPOSITO_VENTA, PROPOSITO_INVENTARIO, PROPOSITOS
 from app.repositories import canasta_repository, producto_repository
@@ -127,6 +128,10 @@ def _pintar(db: Session, canasta) -> dict:
                     "stock_disponible": 0,
                     "hay_stock": False,
                     "existe": False,
+                    # None = el formato no lleva dígito de control (Code
+                    # 128, QR propio). False = la lectura casi seguro está
+                    # mal, avisar antes de crear un producto fantasma.
+                    "checksum_ok": checksum_valido(item.codigo_pendiente),
                 })
             # Si no hay código ni producto, la fila quedó huérfana (el
             # producto se borró con la canasta abierta): se omite en vez
@@ -147,6 +152,7 @@ def _pintar(db: Session, canasta) -> dict:
             "stock_disponible": producto.cantidad,
             "hay_stock": producto.cantidad >= item.cantidad,
             "existe": True,
+            "checksum_ok": None,
         })
 
     return {
@@ -230,7 +236,7 @@ def agregar(db: Session, canasta_id: str, usuario_id: str | None, token: str | N
                 # que se viene a dar de alta. Se guarda como pendiente y
                 # el PC abre el formulario con el código ya puesto.
                 canasta_repository.agregar_codigo_pendiente(
-                    db, canasta, codigo_barras.strip(), cantidad
+                    db, canasta, normalizar(codigo_barras), cantidad
                 )
                 db.refresh(canasta)
                 return _pintar(db, canasta)

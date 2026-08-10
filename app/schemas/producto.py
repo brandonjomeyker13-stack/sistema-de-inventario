@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
+from app.core.codigos import normalizar
+
 
 class ProductoCrear(BaseModel):
     nombre: str = Field(min_length=1, max_length=255)
@@ -20,10 +22,11 @@ class ProductoCrear(BaseModel):
         # Cadena vacía -> None. El frontend manda "" cuando el campo se
         # deja en blanco, y guardarlo tal cual haría que dos productos
         # sin código chocaran contra el índice único.
-        if v is None:
-            return None
-        v = v.strip()
-        return v or None
+        #
+        # normalizar() además convierte un UPC-A de 12 dígitos a su forma
+        # EAN-13, para que el mismo producto leído por dos escáneres
+        # distintos no acabe registrado dos veces.
+        return normalizar(v)
 
 
 class ProductoActualizar(ProductoCrear):

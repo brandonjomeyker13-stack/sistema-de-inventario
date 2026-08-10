@@ -51,6 +51,10 @@ class CanastaLineaOut(BaseModel):
     hay_stock: bool
     # False = hay que dar de alta ese código antes de poder recibir.
     existe: bool = True
+    # Solo en líneas pendientes. False = el dígito de control no cuadra,
+    # así que casi seguro es una mala lectura de la cámara. None = ese
+    # formato no lleva dígito de control, no hay nada que comprobar.
+    checksum_ok: bool | None = None
 
 
 class CanastaOut(BaseModel):
