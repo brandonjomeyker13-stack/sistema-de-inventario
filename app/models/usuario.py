@@ -40,8 +40,19 @@ class Usuario(Base):
     # habría que acordarse de apagarlo cada mes, cliente por cliente, y el
     # día que se olvide alguien usa gratis medio año. Una fecha vence sola.
     #
-    # NULL = sin suscripción (cuenta vencida). Ver app/api/deps.py.
+    # NULL = nunca ha pagado. Ver app/api/deps.py.
     suscripcion_hasta = Column(String(10), nullable=True)
+
+    # Fin del periodo gratis. Se escribe UNA SOLA VEZ al crear la cuenta y
+    # no se vuelve a tocar.
+    #
+    # Va en su propia columna, y no calculada desde `creado_en`, por un
+    # caso concreto: si alguien pagó y luego se le borra la fecha de
+    # suscripción, no puede volver a tener los días gratis. Con la prueba
+    # en una columna propia eso es imposible — ya está en el pasado y
+    # nada la revive. Derivarla de `creado_en` haría que una cuenta joven
+    # que ya pagó recuperara la prueba al limpiarle el pago.
+    prueba_hasta = Column(String(10), nullable=True)
     # Arranca en False: quien se registra con correo y contraseña tiene
     # que confirmar que ese correo es suyo. Estuvo en True mientras no
     # había forma de mandar el correo — ahora sí la hay.

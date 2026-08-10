@@ -10,13 +10,10 @@ mismo, no sobre cómo se firma un JWT — por eso viven aquí, siguiendo el
 mismo patrón que producto_service.py / venta_service.py.
 """
 
-from datetime import datetime
-
 from sqlalchemy.orm import Session
 
-from app.api.deps import suscripcion_activa, verificacion_al_dia, dias_para_verificar
+from app.api.deps import estado_acceso, verificacion_al_dia, dias_para_verificar
 from app.core.exceptions import ErrorNegocio, NoEncontrado, CredencialesInvalidas
-from app.core.fechas import FORMATO_FECHA, hoy_local
 from app.core.security import hash_password, verificar_password
 from app.repositories import usuario_repository
 
@@ -36,24 +33,21 @@ def _con_suscripcion(usuario):
     estado equivocado, y sería justo el tipo de fallo del que nadie
     sospecha.
     """
-    activa = suscripcion_activa(usuario)
-    if usuario.suscripcion_hasta:
-        restantes = (
-            datetime.strptime(usuario.suscripcion_hasta, FORMATO_FECHA).date()
-            - datetime.strptime(hoy_local(), FORMATO_FECHA).date()
-        ).days
-    else:
-        restantes = 0
+    acceso = estado_acceso(usuario)
 
-    usuario.suscripcion_activa = activa
+    usuario.suscripcion_activa = acceso["activa"]
     # Nunca negativo: "te quedan -5 días" no se lo dices a nadie.
-    usuario.dias_restantes = max(restantes, 0)
+    usuario.dias_restantes = acceso["dias_restantes"]
+    # True mientras esté en los días gratis y no haya pagado nunca. El
+    # frontend lo necesita para decir "te quedan 2 días de prueba" en vez
+    # de "tu plan vence en 2 días", que significan cosas distintas.
+    usuario.en_prueba = acceso["en_prueba"]
 
     verificado = verificacion_al_dia(usuario)
     usuario.dias_para_verificar = dias_para_verificar(usuario)
     # Las dos condiciones ya resueltas, para que el frontend no tenga que
     # combinarlas y arriesgarse a hacerlo distinto en cada pantalla.
-    usuario.puede_registrar = activa and verificado
+    usuario.puede_registrar = acceso["activa"] and verificado
     return usuario
 
 

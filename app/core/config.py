@@ -78,11 +78,15 @@ class Settings(BaseSettings):
     # preferible un error claro que un tendero mirando una ruedita.
     LLM_TIMEOUT_SEGUNDOS: int = 25
 
-    # Días de prueba al crear una cuenta nueva. Sin esto, una cuenta
-    # recién creada nacería vencida y no podría ni registrar su primer
-    # producto. El cobro se controla a mano por ahora: se edita
-    # `usuarios.suscripcion_hasta` en la base cuando alguien paga.
-    DIAS_DE_PRUEBA: int = 30
+    # Días gratis desde que se crea la cuenta. NO se escriben en la base:
+    # se calculan desde `usuarios.creado_en`.
+    #
+    # Así `suscripcion_hasta` significa una sola cosa —"pagado hasta"— y
+    # se lee de un vistazo en Supabase: NULL es "nunca ha pagado", una
+    # fecha es "pagó hasta ahí". Si el periodo de prueba se escribiera en
+    # esa columna, no habría forma de distinguir a quien pagó de quien
+    # solo está probando, que es justo lo que hay que saber para cobrar.
+    DIAS_DE_PRUEBA: int = 4
 
     # Zona horaria del negocio. Determina qué se considera "hoy" al
     # registrar una venta y al cortar los reportes diarios. NO se puede

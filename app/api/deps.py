@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.core.exceptions import SuscripcionVencida, CorreoSinVerificar
-from app.core.fechas import hoy_local
+from app.core.fechas import FORMATO_FECHA, hoy_local
 from app.core.security import decodificar_token
 from app.repositories import usuario_repository
 from app.models.usuario import Usuario
@@ -47,17 +47,55 @@ def obtener_usuario_actual(
     return usuario
 
 
-def suscripcion_activa(usuario: Usuario) -> bool:
-    """Si la cuenta puede usar la aplicación completa hoy.
+def _dias_hasta(fecha: str) -> int:
+    return (
+        datetime.strptime(fecha, FORMATO_FECHA).date()
+        - datetime.strptime(hoy_local(), FORMATO_FECHA).date()
+    ).days
 
-    Se compara como texto porque las fechas se guardan en 'YYYY-MM-DD',
-    formato que ordena igual como cadena que como fecha. Y se usa la
-    fecha del NEGOCIO, no la del servidor: si no, en Colombia la
-    suscripción vencería a las 7 de la tarde del último día.
+
+def estado_acceso(usuario: Usuario) -> dict:
+    """Si la cuenta puede usar la aplicación completa, y por qué.
+
+    Dos vías, en este orden:
+
+      1. PAGÓ: `suscripcion_hasta` tiene una fecha que no ha pasado.
+      2. PRUEBA: `prueba_hasta` no ha pasado.
+
+    Son columnas separadas a propósito. `suscripcion_hasta` significa una
+    sola cosa —"pagado hasta"— y por eso se lee de un vistazo en Supabase:
+    NULL es "nunca ha pagado". Y `prueba_hasta` se escribe una vez al
+    registrarse y no se toca nunca más, así que **borrar la suscripción de
+    alguien no le devuelve los días gratis**: su prueba ya quedó en el
+    pasado y nada la revive.
+
+    Las fechas se comparan como texto porque el formato 'YYYY-MM-DD'
+    ordena igual como cadena que como fecha. Y se usa la fecha del
+    NEGOCIO, no la del servidor: si no, en Colombia el plan vencería a
+    las 7 de la tarde del último día.
     """
-    if not usuario.suscripcion_hasta:
-        return False
-    return usuario.suscripcion_hasta >= hoy_local()
+    # La cadena vacía cuenta como NULL: el editor de Supabase guarda ''
+    # al limpiar una celda de texto, y tiene que significar "sin fecha".
+    pagado = (usuario.suscripcion_hasta or "").strip()
+    prueba = (usuario.prueba_hasta or "").strip()
+
+    if pagado and pagado >= hoy_local():
+        return {
+            "activa": True, "en_prueba": False,
+            "dias_restantes": max(_dias_hasta(pagado), 0),
+        }
+
+    if prueba and prueba >= hoy_local():
+        return {
+            "activa": True, "en_prueba": True,
+            "dias_restantes": max(_dias_hasta(prueba), 0),
+        }
+
+    return {"activa": False, "en_prueba": False, "dias_restantes": 0}
+
+
+def suscripcion_activa(usuario: Usuario) -> bool:
+    return estado_acceso(usuario)["activa"]
 
 
 def dias_para_verificar(usuario: Usuario) -> int:
@@ -111,10 +149,22 @@ def exigir_suscripcion_activa(
         )
 
     if not suscripcion_activa(usuario_actual):
-        raise SuscripcionVencida(
-            "Tu suscripción venció. Puedes seguir viendo tus productos y tu "
-            "historial, pero para registrar ventas necesitas renovar."
-        )
+        # Mensaje distinto según haya pagado antes o no: a quien se le
+        # acabó la prueba hay que explicarle que empieza a pagar, y a
+        # quien ya era cliente, que renueve. Decirle "renueva" a quien
+        # nunca pagó suena a error del sistema.
+        if usuario_actual.suscripcion_hasta:
+            mensaje = (
+                "Tu suscripción venció. Puedes seguir viendo tus productos y tu "
+                "historial, pero para registrar ventas necesitas renovar."
+            )
+        else:
+            mensaje = (
+                "Se acabaron tus días de prueba. Puedes seguir viendo tus "
+                "productos y tu historial, pero para registrar ventas hay que "
+                "activar el plan."
+            )
+        raise SuscripcionVencida(mensaje)
     return usuario_actual
 
 

@@ -19,9 +19,14 @@ class UsuarioOut(BaseModel):
     email: EmailStr
     nombre_negocio: str
     sector: str | None = None
-    # Fecha 'YYYY-MM-DD' hasta la que la cuenta puede usar la aplicación
-    # completa. None = sin suscripción.
+    # 'YYYY-MM-DD' hasta cuando PAGÓ. None = nunca ha pagado.
     suscripcion_hasta: str | None = None
+    # Fin de los días gratis. Se fija al registrarse y no cambia.
+    prueba_hasta: str | None = None
+    # True mientras el acceso venga de la prueba y no de un pago. El
+    # frontend lo necesita para decir "te quedan 2 días de prueba" en vez
+    # de "tu plan vence en 2 días", que no significan lo mismo.
+    en_prueba: bool = False
     # Calculados, para que el frontend no tenga que comparar fechas ni
     # decidir qué zona horaria usar — la del negocio, no la del navegador.
     suscripcion_activa: bool = True
