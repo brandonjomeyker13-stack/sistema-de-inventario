@@ -11,13 +11,45 @@ from sqlalchemy.orm import Session
 from app.models.producto import Producto
 
 
-def listar(db: Session, usuario_id: str) -> list[Producto]:
-    return (
-        db.query(Producto)
-        .filter(Producto.usuario_id == usuario_id, Producto.eliminado.is_(False))
-        .order_by(Producto.nombre)
-        .all()
+def _query_listado(db: Session, usuario_id: str, q: str | None = None,
+                   categoria_id: str | None = None):
+    query = db.query(Producto).filter(
+        Producto.usuario_id == usuario_id, Producto.eliminado.is_(False)
     )
+    if q:
+        termino = f"%{q.strip()}%"
+        # Busca por nombre o por código: el tendero teclea "arr" o pasa el
+        # lector, y en los dos casos espera encontrar lo mismo.
+        query = query.filter(
+            Producto.nombre.ilike(termino) | Producto.codigo_barras.ilike(termino)
+        )
+    if categoria_id:
+        query = query.filter(Producto.categoria_id == categoria_id)
+    return query
+
+
+def listar(db: Session, usuario_id: str, q: str | None = None,
+           categoria_id: str | None = None, limite: int | None = None,
+           offset: int = 0) -> list[Producto]:
+    """El inventario, con búsqueda y paginación opcionales.
+
+    `limite` es None por defecto a propósito: poner un tope por defecto
+    truncaría en silencio el inventario de quien ya tiene 500 productos, y
+    la caja mostraría un catálogo incompleto sin que nadie se entere. Es
+    preferible una respuesta grande a una respuesta incorrecta; quien
+    quiera paginar, que lo pida.
+    """
+    query = _query_listado(db, usuario_id, q, categoria_id).order_by(Producto.nombre)
+    if offset:
+        query = query.offset(offset)
+    if limite is not None:
+        query = query.limit(limite)
+    return query.all()
+
+
+def contar(db: Session, usuario_id: str, q: str | None = None,
+           categoria_id: str | None = None) -> int:
+    return _query_listado(db, usuario_id, q, categoria_id).count()
 
 
 def obtener_por_id(db: Session, usuario_id: str, producto_id: str) -> Producto | None:

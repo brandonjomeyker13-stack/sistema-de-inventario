@@ -5,7 +5,7 @@ Todos requieren Bearer token: los productos siempre están atados al
 usuario_id del token, nunca se reciben ni exponen "sueltos".
 """
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
@@ -19,10 +19,27 @@ router = APIRouter(prefix="/productos", tags=["Productos"])
 
 @router.get("", response_model=list[ProductoOut])
 def listar(
+    respuesta: Response,
+    q: str | None = Query(default=None, description="Busca en nombre y código de barras"),
+    categoria_id: str | None = None,
+    limite: int | None = Query(default=None, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     usuario_actual: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    return product_service.listar(db, usuario_actual.id)
+    """El inventario, con búsqueda y paginación opcionales.
+
+    Sin `limite` devuelve todo, como siempre. No se pone un tope por
+    defecto a propósito: truncar en silencio el inventario de quien tiene
+    500 productos haría que la caja mostrara un catálogo incompleto sin
+    que nadie lo note. Es peor una respuesta incorrecta que una grande.
+
+    El total (sin paginar) va en `X-Total-Count`.
+    """
+    respuesta.headers["X-Total-Count"] = str(
+        product_service.contar(db, usuario_actual.id, q, categoria_id)
+    )
+    return product_service.listar(db, usuario_actual.id, q, categoria_id, limite, offset)
 
 
 @router.get("/codigo/{codigo_barras}", response_model=ProductoOut | None)

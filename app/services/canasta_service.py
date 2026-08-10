@@ -25,8 +25,9 @@ vida del token o regenerarlo tras cada cobro.
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ErrorNegocio, NoEncontrado, CredencialesInvalidas
+from app.models.canasta import PROPOSITO_VENTA, PROPOSITO_INVENTARIO, PROPOSITOS
 from app.repositories import canasta_repository, producto_repository
-from app.services import venta_service
+from app.services import venta_service, movimiento_service
 
 
 def _canasta_vigente(db: Session, canasta_id: str):
@@ -78,6 +79,23 @@ def _iguales(a: str, b: str) -> bool:
     return secrets.compare_digest(a, b)
 
 
+def _resolver(db: Session, canasta, item):
+    """El producto de una línea, mirando también los códigos pendientes.
+
+    Un código que se escaneó cuando no existía puede existir ya: el
+    tendero lo dio de alta desde el PC mientras el celular seguía
+    escaneando. Se resuelve al leer, sin escribir nada — un GET que
+    modifica datos es una fuente de sorpresas.
+    """
+    if item.producto_id:
+        return producto_repository.obtener_por_id(db, canasta.usuario_id, item.producto_id)
+    if item.codigo_pendiente:
+        return producto_repository.obtener_por_codigo_barras(
+            db, canasta.usuario_id, item.codigo_pendiente
+        )
+    return None
+
+
 def _pintar(db: Session, canasta) -> dict:
     """Arma la vista de la canasta con nombres, precios y totales.
 
@@ -87,17 +105,40 @@ def _pintar(db: Session, canasta) -> dict:
     """
     lineas = []
     total = 0.0
+    pendientes = 0
+
     for item in canasta.items:
-        producto = producto_repository.obtener_por_id(db, canasta.usuario_id, item.producto_id)
+        producto = _resolver(db, canasta, item)
+
         if not producto:
-            # El producto se borró con la canasta abierta. Se omite en vez
-            # de romper la pantalla; al cobrar fallaría con un mensaje claro.
+            if item.codigo_pendiente:
+                # Código escaneado que aún no es ningún producto. En una
+                # canasta de inventario es lo normal: el PC lo usa para
+                # abrir el formulario de alta con el código ya puesto.
+                pendientes += 1
+                lineas.append({
+                    "id": item.id,
+                    "producto_id": None,
+                    "codigo_pendiente": item.codigo_pendiente,
+                    "nombre": None,
+                    "cantidad": item.cantidad,
+                    "precio_unitario": 0.0,
+                    "subtotal": 0.0,
+                    "stock_disponible": 0,
+                    "hay_stock": False,
+                    "existe": False,
+                })
+            # Si no hay código ni producto, la fila quedó huérfana (el
+            # producto se borró con la canasta abierta): se omite en vez
+            # de romper la pantalla.
             continue
+
         subtotal = round(producto.precio * item.cantidad, 2)
         total += subtotal
         lineas.append({
             "id": item.id,
             "producto_id": producto.id,
+            "codigo_pendiente": None,
             "nombre": producto.nombre,
             "cantidad": item.cantidad,
             "precio_unitario": producto.precio,
@@ -105,36 +146,61 @@ def _pintar(db: Session, canasta) -> dict:
             # Para que el PC pueda avisar en rojo antes de intentar cobrar.
             "stock_disponible": producto.cantidad,
             "hay_stock": producto.cantidad >= item.cantidad,
+            "existe": True,
         })
 
     return {
         "id": canasta.id,
         "estado": canasta.estado,
+        "proposito": canasta.proposito,
         "items": lineas,
         "total": round(total, 2),
         "unidades": sum(l["cantidad"] for l in lineas),
+        # Cuántas líneas siguen sin producto. En inventario, mientras sea
+        # mayor que cero no se puede recibir la mercancía.
+        "pendientes": pendientes,
         "expira_en": canasta.expira_en,
     }
 
 
-def abrir(db: Session, usuario_id: str) -> dict:
-    """Abre la venta en curso, o devuelve la que ya estaba abierta.
+def abrir(db: Session, usuario_id: str, proposito: str = PROPOSITO_VENTA) -> dict:
+    """Abre la canasta en curso, o devuelve la que ya estaba abierta.
 
-    No crea una nueva si ya hay una viva. El frontend llama a esto cada
-    vez que se entra a la pantalla de ventas, y crear un carrito por
-    visita dejaría huérfanos por todas partes — y peor, perdería la venta
-    a medias que el tendero tenía en pantalla si recarga sin querer.
+    No crea una nueva si ya hay una viva del mismo propósito. El frontend
+    llama a esto cada vez que se entra a la pantalla, y crear un carrito
+    por visita dejaría huérfanos por todas partes — y peor, perdería el
+    trabajo a medias si el tendero recarga sin querer.
+
+    Una venta en curso y una recepción de mercancía en curso conviven sin
+    pisarse: son propósitos distintos.
 
     Para empezar de cero está DELETE /canastas/{id}.
     """
-    canasta = canasta_repository.obtener_abierta(db, usuario_id)
+    if proposito not in PROPOSITOS:
+        raise ErrorNegocio(f"Propósito no válido. Debe ser uno de: {', '.join(PROPOSITOS)}")
+
+    canasta = canasta_repository.obtener_abierta(db, usuario_id, proposito)
     if not canasta:
-        canasta = canasta_repository.crear(db, usuario_id)
+        canasta = canasta_repository.crear(db, usuario_id, proposito)
 
     vista = _pintar(db, canasta)
     # El token solo viaja aquí: es lo que el PC mete dentro del QR.
     vista["token_celular"] = canasta.token_celular
     return vista
+
+
+def listar_abiertas(db: Session, usuario_id: str) -> list[dict]:
+    """Canastas a medias que siguen vivas, de cualquier propósito.
+
+    Existe para que cerrar el navegador no pierda el trabajo. El frontend
+    puede avisar "tienes una venta sin cobrar" al entrar, en vez de
+    dejarla huérfana hasta que caduque.
+
+    No devuelve el token: eso solo sale de POST /canastas, que además
+    reutiliza la que ya estuviera abierta. Así el token se entrega a quien
+    retoma el trabajo de forma explícita, no a cualquiera que liste.
+    """
+    return [_pintar(db, c) for c in canasta_repository.listar_abiertas(db, usuario_id)]
 
 
 def ver(db: Session, canasta_id: str, usuario_id: str | None, token: str | None) -> dict:
@@ -159,6 +225,15 @@ def agregar(db: Session, canasta_id: str, usuario_id: str | None, token: str | N
             db, canasta.usuario_id, codigo_barras
         )
         if not producto:
+            if canasta.proposito == PROPOSITO_INVENTARIO:
+                # Aquí un código desconocido NO es un error: es justo lo
+                # que se viene a dar de alta. Se guarda como pendiente y
+                # el PC abre el formulario con el código ya puesto.
+                canasta_repository.agregar_codigo_pendiente(
+                    db, canasta, codigo_barras.strip(), cantidad
+                )
+                db.refresh(canasta)
+                return _pintar(db, canasta)
             raise NoEncontrado(f"No hay ningún producto con el código {codigo_barras}")
     elif nombre_producto:
         producto = producto_repository.obtener_por_nombre(db, canasta.usuario_id, nombre_producto)
@@ -221,6 +296,10 @@ def cobrar(db: Session, canasta_id: str, usuario_id: str, cliente_id: str | None
     fiado. La canasta solo aporta la lista.
     """
     canasta = _autorizar(db, canasta_id, usuario_id, None, exige_dueno=True)
+    if canasta.proposito != PROPOSITO_VENTA:
+        # Guarda explícita: una recepción de mercancía nunca puede
+        # cobrarse como si fuera una venta.
+        raise ErrorNegocio("Esta canasta es de inventario, no de venta")
     if not canasta.items:
         raise ErrorNegocio("La canasta está vacía")
 
@@ -232,3 +311,54 @@ def cobrar(db: Session, canasta_id: str, usuario_id: str, cliente_id: str | None
     )
     canasta_repository.marcar_cobrada(db, canasta, venta.id)
     return venta
+
+
+def recibir(db: Session, canasta_id: str, usuario_id: str,
+            costos: dict[str, float] | None = None, motivo: str | None = None) -> dict:
+    """Convierte una canasta de inventario en entradas de stock.
+
+    El equivalente de `cobrar`, pero al revés: en vez de sacar mercancía
+    y cobrarla, la mete y la registra en el libro de movimientos.
+
+    Se exige que NO queden códigos pendientes. Recibir mercancía a medias
+    dejaría cajas escaneadas que no entraron a ningún inventario, y nadie
+    se enteraría hasta el siguiente conteo físico. Es mejor devolver la
+    lista de lo que falta identificar.
+
+    `costos` permite decir a cuánto se compró cada producto esta vez: es
+    justo el momento en que se conoce ese dato.
+    """
+    canasta = _autorizar(db, canasta_id, usuario_id, None, exige_dueno=True)
+    if canasta.proposito != PROPOSITO_INVENTARIO:
+        raise ErrorNegocio("Esta canasta es de venta, no de inventario")
+    if not canasta.items:
+        raise ErrorNegocio("La canasta está vacía")
+
+    vista = _pintar(db, canasta)
+    if vista["pendientes"]:
+        sin_identificar = [
+            l["codigo_pendiente"] for l in vista["items"] if not l["existe"]
+        ]
+        raise ErrorNegocio(
+            f"Faltan {len(sin_identificar)} código(s) por dar de alta antes de recibir: "
+            + ", ".join(sin_identificar[:5])
+            + ("..." if len(sin_identificar) > 5 else "")
+        )
+
+    costos = costos or {}
+    movimientos = []
+    for linea in vista["items"]:
+        movimientos.append(
+            movimiento_service.registrar_entrada(
+                db, usuario_id, linea["producto_id"], linea["cantidad"],
+                costos.get(linea["producto_id"]),
+                motivo or "Recepción escaneada",
+            )
+        )
+
+    canasta_repository.marcar_cobrada(db, canasta, None)
+    return {
+        "productos_recibidos": len(movimientos),
+        "unidades_recibidas": sum(m.cantidad for m in movimientos),
+        "movimientos": movimientos,
+    }

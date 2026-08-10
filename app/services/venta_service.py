@@ -108,11 +108,31 @@ def vender(
     )
 
 
-def ventas_por_fecha(db: Session, usuario_id: str, fecha: str):
-    # La ganancia se suma aquí y no con un segundo SELECT: ya tenemos las
-    # filas en memoria, y una ida menos a la base importa cuando la base
-    # está en Supabase y el servicio en Render.
-    ventas = venta_repository.listar_por_fecha(db, usuario_id, fecha)
+def ventas_por_fecha(db: Session, usuario_id: str, fecha: str | None = None,
+                     desde: str | None = None, hasta: str | None = None):
+    """Ventas de un día o de un rango.
+
+    Acepta `fecha` sola (como siempre) o `desde`/`hasta`. Existe el rango
+    porque un reporte "del 1 al 15" con solo `fecha` eran quince
+    peticiones, y cada una despertando un servicio que duerme.
+
+    La ganancia se suma aquí y no con un segundo SELECT: ya tenemos las
+    filas en memoria, y una ida menos a la base importa cuando la base
+    está en Supabase y el servicio en Render.
+    """
+    if fecha:
+        desde = hasta = fecha
+    elif desde and not hasta:
+        hasta = desde
+    elif hasta and not desde:
+        desde = hasta
+    elif not desde and not hasta:
+        desde = hasta = hoy_local()
+
+    if desde > hasta:
+        raise ErrorNegocio("La fecha inicial no puede ser posterior a la final")
+
+    ventas = venta_repository.listar_por_rango(db, usuario_id, desde, hasta)
     ganancia = round(sum(v.ganancia_total for v in ventas), 2)
     return ventas, ganancia
 

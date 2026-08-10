@@ -40,12 +40,21 @@ def vender(
 
 
 @router.get("", response_model=VentasPorFechaOut)
-def listar_por_fecha(
-    fecha: str,
+def listar_ventas(
+    fecha: str | None = Query(default=None, description="Un día concreto, AAAA-MM-DD"),
+    desde: str | None = Query(default=None, description="Inicio del rango, AAAA-MM-DD"),
+    hasta: str | None = Query(default=None, description="Fin del rango, AAAA-MM-DD"),
     usuario_actual: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    ventas, ganancia = venta_service.ventas_por_fecha(db, usuario_actual.id, fecha)
+    """Ventas de un día (`fecha`) o de un rango (`desde`/`hasta`), inclusive.
+
+    El rango evita que un reporte "del 1 al 15" sean quince peticiones.
+    Sin ningún parámetro devuelve las de hoy.
+    """
+    ventas, ganancia = venta_service.ventas_por_fecha(
+        db, usuario_actual.id, fecha, desde, hasta
+    )
     return {"ventas": ventas, "ganancia_total": ganancia}
 
 

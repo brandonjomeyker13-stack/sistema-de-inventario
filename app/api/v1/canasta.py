@@ -24,6 +24,7 @@ from app.api.deps import obtener_usuario_actual, obtener_usuario_opcional
 from app.models.usuario import Usuario
 from app.schemas.canasta import (
     CanastaOut, CanastaAbiertaOut, CanastaItemAgregar, CanastaCantidad, CanastaCobrar,
+    CanastaAbrir, CanastaRecibir, RecepcionOut,
 )
 from app.schemas.venta import VentaOut
 from app.services import canasta_service
@@ -33,11 +34,35 @@ router = APIRouter(prefix="/canastas", tags=["Canasta compartida"])
 
 @router.post("", response_model=CanastaAbiertaOut, status_code=status.HTTP_201_CREATED)
 def abrir(
+    datos: CanastaAbrir | None = None,
     usuario_actual: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    """Abre una venta en curso. Devuelve el token que va dentro del QR."""
-    return canasta_service.abrir(db, usuario_actual.id)
+    """Abre una canasta en curso y devuelve el token que va dentro del QR.
+
+    `proposito` distingue una venta de una recepción de mercancía. Si ya
+    hay una abierta de ese propósito, la devuelve en vez de crear otra —
+    así recargar la página no pierde el trabajo a medias.
+
+    El cuerpo es opcional: sin él, abre una canasta de venta.
+    """
+    proposito = datos.proposito if datos else "venta"
+    return canasta_service.abrir(db, usuario_actual.id, proposito)
+
+
+@router.get("", response_model=list[CanastaOut])
+def listar_abiertas(
+    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """Ventas a medias sin cobrar.
+
+    Para que cerrar el navegador no pierda la canasta: el frontend avisa
+    al entrar en vez de dejarla huérfana. No incluye el token — para
+    retomarla se llama a POST /canastas, que devuelve la misma canasta
+    con su token.
+    """
+    return canasta_service.listar_abiertas(db, usuario_actual.id)
 
 
 @router.get("/{canasta_id}", response_model=CanastaOut)
@@ -140,6 +165,29 @@ def cobrar(
         db, canasta_id, usuario_actual.id, cliente_id=datos.cliente_id,
         es_fiado=datos.es_fiado, dias_plazo=datos.dias_plazo,
         fecha_vencimiento=datos.fecha_vencimiento,
+    )
+
+
+@router.post("/{canasta_id}/recibir", response_model=RecepcionOut,
+             status_code=status.HTTP_201_CREATED)
+def recibir(
+    canasta_id: str,
+    datos: CanastaRecibir | None = None,
+    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """Mete al inventario todo lo escaneado en una canasta de inventario.
+
+    Es el equivalente de `cobrar`, al revés: registra entradas de stock en
+    el libro de movimientos. Falla con 400 si queda algún código sin dar
+    de alta, y dice cuáles.
+
+    Solo con sesión. El token del celular nunca puede recibir mercancía.
+    """
+    return canasta_service.recibir(
+        db, canasta_id, usuario_actual.id,
+        datos.costos if datos else None,
+        datos.motivo if datos else None,
     )
 
 

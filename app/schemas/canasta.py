@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.schemas.movimiento import MovimientoOut
+
 
 class CanastaItemAgregar(BaseModel):
     """Lo que manda el celular al escanear, o el PC al agregar a mano."""
@@ -35,8 +37,11 @@ class CanastaCantidad(BaseModel):
 
 class CanastaLineaOut(BaseModel):
     id: str
-    producto_id: str
-    nombre: str
+    # None cuando el código escaneado todavía no es ningún producto
+    # (solo ocurre en canastas de inventario).
+    producto_id: str | None = None
+    codigo_pendiente: str | None = None
+    nombre: str | None = None
     cantidad: int
     precio_unitario: float
     subtotal: float
@@ -44,14 +49,19 @@ class CanastaLineaOut(BaseModel):
     # False cuando la canasta pide más de lo que hay. No impide seguir
     # agregando; sirve para avisar en pantalla antes de intentar cobrar.
     hay_stock: bool
+    # False = hay que dar de alta ese código antes de poder recibir.
+    existe: bool = True
 
 
 class CanastaOut(BaseModel):
     id: str
     estado: str
+    proposito: str = "venta"
     items: list[CanastaLineaOut] = []
     total: float = 0.0
     unidades: int = 0
+    # Líneas cuyo código aún no corresponde a ningún producto.
+    pendientes: int = 0
     expira_en: datetime | None = None
 
 
@@ -65,8 +75,27 @@ class CanastaAbiertaOut(CanastaOut):
     token_celular: str
 
 
+class CanastaAbrir(BaseModel):
+    # "venta" (por defecto) o "inventario". El emparejamiento con el
+    # celular es el mismo; lo que cambia es qué se hace con lo escaneado.
+    proposito: str = "venta"
+
+
 class CanastaCobrar(BaseModel):
     cliente_id: str | None = None
     es_fiado: bool = False
     dias_plazo: int | None = Field(default=None, ge=0, le=365)
     fecha_vencimiento: str | None = None
+
+
+class CanastaRecibir(BaseModel):
+    # producto_id -> costo unitario de esta compra. Opcional: solo los
+    # productos cuyo costo haya cambiado.
+    costos: dict[str, float] | None = None
+    motivo: str | None = Field(default=None, max_length=255)
+
+
+class RecepcionOut(BaseModel):
+    productos_recibidos: int
+    unidades_recibidas: int
+    movimientos: list[MovimientoOut]

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models.canasta import Canasta, CanastaItem, ABIERTA, COBRADA
+from app.models.canasta import Canasta, CanastaItem, ABIERTA, COBRADA, PROPOSITO_VENTA
 
 # Cuánto vive una canasta sin que nadie la toque. Se estira con cada
 # cambio, así que esto no limita cuánto puede durar una venta: limita
@@ -21,9 +21,10 @@ def _nueva_caducidad() -> datetime:
     return _ahora() + timedelta(minutes=MINUTOS_DE_VIDA)
 
 
-def crear(db: Session, usuario_id: str) -> Canasta:
+def crear(db: Session, usuario_id: str, proposito: str = PROPOSITO_VENTA) -> Canasta:
     canasta = Canasta(
         usuario_id=usuario_id,
+        proposito=proposito,
         # token_urlsafe(32) da 43 caracteres imposibles de adivinar. Va en
         # la URL del QR, así que tiene que ser seguro para URL.
         token_celular=secrets.token_urlsafe(32),
@@ -36,21 +37,39 @@ def crear(db: Session, usuario_id: str) -> Canasta:
     return canasta
 
 
-def obtener_abierta(db: Session, usuario_id: str) -> Canasta | None:
-    """La venta en curso del negocio, si la hay.
+def obtener_abierta(db: Session, usuario_id: str,
+                    proposito: str = PROPOSITO_VENTA) -> Canasta | None:
+    """La canasta en curso del negocio para ese propósito, si la hay.
 
-    Existe porque el frontend abre una canasta al entrar a la pantalla de
-    ventas. Sin esto, cada vez que el tendero navega a Ventas y vuelve se
-    crearía un carrito nuevo, y acabaría con decenas de huérfanos (y con
-    la venta a medias perdida en uno de ellos).
+    Existe porque el frontend abre una canasta al entrar a la pantalla.
+    Sin esto, cada vez que el tendero navega y vuelve se crearía un
+    carrito nuevo, y acabaría con decenas de huérfanos (y con el trabajo
+    a medias perdido en uno de ellos).
+
+    Se filtra por propósito para que una venta en curso y una recepción
+    de mercancía en curso puedan convivir sin pisarse.
     """
     candidatas = (
+        db.query(Canasta)
+        .filter(
+            Canasta.usuario_id == usuario_id,
+            Canasta.estado == ABIERTA,
+            Canasta.proposito == proposito,
+        )
+        .order_by(Canasta.creado_en.desc())
+        .all()
+    )
+    return next((c for c in candidatas if esta_vigente(c)), None)
+
+
+def listar_abiertas(db: Session, usuario_id: str) -> list[Canasta]:
+    todas = (
         db.query(Canasta)
         .filter(Canasta.usuario_id == usuario_id, Canasta.estado == ABIERTA)
         .order_by(Canasta.creado_en.desc())
         .all()
     )
-    return next((c for c in candidatas if esta_vigente(c)), None)
+    return [c for c in todas if esta_vigente(c)]
 
 
 def obtener_por_id(db: Session, canasta_id: str) -> Canasta | None:
@@ -79,6 +98,36 @@ def esta_vigente(canasta: Canasta) -> bool:
 def refrescar_caducidad(db: Session, canasta: Canasta) -> None:
     canasta.expira_en = _nueva_caducidad()
     db.commit()
+
+
+def agregar_codigo_pendiente(db: Session, canasta: Canasta, codigo: str,
+                             cantidad: int) -> CanastaItem:
+    """Un código escaneado que todavía no es ningún producto.
+
+    Solo tiene sentido en canastas de inventario: es el caso normal al
+    dar de alta mercancía nueva.
+    """
+    item = (
+        db.query(CanastaItem)
+        .filter(
+            CanastaItem.canasta_id == canasta.id,
+            CanastaItem.codigo_pendiente == codigo,
+        )
+        .first()
+    )
+    if item:
+        item.cantidad += cantidad
+    else:
+        item = CanastaItem(
+            canasta_id=canasta.id, producto_id=None,
+            codigo_pendiente=codigo, cantidad=cantidad,
+        )
+        db.add(item)
+
+    canasta.expira_en = _nueva_caducidad()
+    db.commit()
+    db.refresh(item)
+    return item
 
 
 def agregar_o_sumar(db: Session, canasta: Canasta, producto_id: str, cantidad: int) -> CanastaItem:

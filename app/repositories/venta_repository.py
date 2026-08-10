@@ -15,6 +15,8 @@ from app.core.exceptions import ErrorNegocio
 from app.models.venta import Venta
 from app.models.venta_item import VentaItem
 from app.models.producto import Producto
+from app.models.movimiento import VENTA as MOVIMIENTO_VENTA
+from app.repositories import movimiento_repository
 
 
 def crear_venta_atomica(
@@ -34,6 +36,12 @@ def crear_venta_atomica(
     """
     if not lineas:
         raise ErrorNegocio("La venta no tiene productos")
+
+    # El stock de cada producto ANTES de tocar nada. Hay que leerlo aquí
+    # y no después: el UPDATE de más abajo sincroniza la sesión, así que
+    # producto.cantidad ya no valdría lo de antes cuando lo necesitemos
+    # para el libro de movimientos.
+    stock_previo = {l["producto"].id: l["producto"].cantidad for l in lineas}
 
     for linea in lineas:
         producto = linea["producto"]
@@ -93,18 +101,45 @@ def crear_venta_atomica(
     ]
 
     db.add(venta)
+    # flush y no commit: necesitamos el id de la venta para enlazar los
+    # movimientos, pero todo tiene que guardarse junto. Si esto fuera un
+    # commit y el registro del libro fallara después, quedaría una venta
+    # sin su movimiento y el inventario dejaría de ser auditable.
+    db.flush()
+
+    for linea in lineas:
+        producto = linea["producto"]
+        movimiento_repository.registrar(
+            db, usuario_id, producto.id, MOVIMIENTO_VENTA, -linea["cantidad"],
+            stock_previo[producto.id], fecha, venta_id=venta.id,
+        )
+
     db.commit()
     db.refresh(venta)
     return venta
 
 
-def listar_por_fecha(db: Session, usuario_id: str, fecha: str) -> list[Venta]:
+def listar_por_rango(db: Session, usuario_id: str, desde: str, hasta: str) -> list[Venta]:
+    """Ventas entre dos fechas, ambas incluidas.
+
+    `fecha` es texto 'YYYY-MM-DD', un formato que ordena igual como texto
+    que como fecha, así que la comparación funciona sin conversiones.
+    """
     return (
         db.query(Venta)
-        .filter(Venta.usuario_id == usuario_id, Venta.fecha == fecha, Venta.eliminado.is_(False))
-        .order_by(Venta.creado_en.desc())
+        .filter(
+            Venta.usuario_id == usuario_id,
+            Venta.fecha >= desde,
+            Venta.fecha <= hasta,
+            Venta.eliminado.is_(False),
+        )
+        .order_by(Venta.fecha.desc(), Venta.creado_en.desc())
         .all()
     )
+
+
+def listar_por_fecha(db: Session, usuario_id: str, fecha: str) -> list[Venta]:
+    return listar_por_rango(db, usuario_id, fecha, fecha)
 
 
 def ganancia_por_fecha(db: Session, usuario_id: str, fecha: str) -> float:
