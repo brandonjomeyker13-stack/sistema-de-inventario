@@ -14,7 +14,12 @@ class ProductoCrear(BaseModel):
     @field_validator("nombre")
     @classmethod
     def limpiar_nombre(cls, v: str) -> str:
-        return v.strip()
+        # Colapsa los espacios internos, no solo los de los extremos:
+        # "Cuaderno  amarillo" con dos espacios se veía idéntico a
+        # "Cuaderno amarillo" en pantalla, pero el sistema los trataba
+        # como productos distintos y el stock quedaba partido en dos sin
+        # que nadie entendiera por qué.
+        return " ".join(v.split())
 
     @field_validator("codigo_barras")
     @classmethod

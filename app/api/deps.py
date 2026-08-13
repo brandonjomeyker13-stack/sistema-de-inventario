@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.core.exceptions import SuscripcionVencida, CorreoSinVerificar
-from app.core.fechas import FORMATO_FECHA, hoy_local
+from app.core.fechas import FORMATO_FECHA, fecha_valida, hoy_local
 from app.core.security import decodificar_token
 from app.repositories import usuario_repository
 from app.models.usuario import Usuario
@@ -74,10 +74,14 @@ def estado_acceso(usuario: Usuario) -> dict:
     NEGOCIO, no la del servidor: si no, en Colombia el plan vencería a
     las 7 de la tarde del último día.
     """
-    # La cadena vacía cuenta como NULL: el editor de Supabase guarda ''
-    # al limpiar una celda de texto, y tiene que significar "sin fecha".
-    pagado = (usuario.suscripcion_hasta or "").strip()
-    prueba = (usuario.prueba_hasta or "").strip()
+    # `fecha_valida` devuelve None ante cualquier cosa que no sea una
+    # fecha utilizable: la cadena vacía que guarda Supabase al limpiar una
+    # celda, y también un dedazo tipo '31/12/2026'. Esto último no es
+    # teórico — es una columna que se edita a mano, y antes una fecha mal
+    # escrita hacía que TODAS las rutas protegidas de esa cuenta
+    # respondieran 500 sin decir por qué.
+    pagado = fecha_valida(usuario.suscripcion_hasta)
+    prueba = fecha_valida(usuario.prueba_hasta)
 
     if pagado and pagado >= hoy_local():
         return {

@@ -88,6 +88,51 @@ def obtener_por_codigo_barras(db: Session, usuario_id: str, codigo: str) -> Prod
     )
 
 
+def mapa_por_id(db: Session, usuario_id: str, ids: list[str]) -> dict[str, Producto]:
+    """Varios productos de golpe, indexados por id.
+
+    Existe para el pintado de la canasta, que se consulta cada segundo y
+    medio mientras hay una venta en curso. Resolviendo producto a
+    producto, una canasta de diez líneas eran once consultas por cada
+    sondeo: unas cuatrocientas por minuto contra Supabase, para mostrar
+    una lista que casi nunca cambia.
+    """
+    if not ids:
+        return {}
+    productos = (
+        db.query(Producto)
+        .filter(
+            Producto.usuario_id == usuario_id,
+            Producto.eliminado.is_(False),
+            Producto.id.in_(ids),
+        )
+        .all()
+    )
+    return {p.id: p for p in productos}
+
+
+def mapa_por_codigo_barras(db: Session, usuario_id: str, codigos: list[str]) -> dict[str, Producto]:
+    """Igual que mapa_por_id, para los códigos que aún no tienen producto.
+
+    Se indexa por el código NORMALIZADO, que es como está guardado y como
+    hay que buscarlo. Quien llame debe normalizar también su clave antes
+    de consultar el diccionario.
+    """
+    normalizados = [c for c in (normalizar(c) for c in codigos if c) if c]
+    if not normalizados:
+        return {}
+    productos = (
+        db.query(Producto)
+        .filter(
+            Producto.usuario_id == usuario_id,
+            Producto.eliminado.is_(False),
+            Producto.codigo_barras.in_(normalizados),
+        )
+        .all()
+    )
+    return {p.codigo_barras: p for p in productos}
+
+
 def existe_codigo_barras(db: Session, usuario_id: str, codigo: str, excluir_id: str | None = None) -> bool:
     query = db.query(Producto).filter(
         Producto.usuario_id == usuario_id,

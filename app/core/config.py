@@ -78,14 +78,20 @@ class Settings(BaseSettings):
     # preferible un error claro que un tendero mirando una ruedita.
     LLM_TIMEOUT_SEGUNDOS: int = 25
 
-    # Días gratis desde que se crea la cuenta. NO se escriben en la base:
-    # se calculan desde `usuarios.creado_en`.
+    # Días gratis al crear la cuenta. Se escriben UNA VEZ en
+    # `usuarios.prueba_hasta` (ver usuario_repository.crear) y no se
+    # vuelven a tocar; cambiar este número no afecta a las cuentas que ya
+    # existen, solo a las nuevas.
     #
-    # Así `suscripcion_hasta` significa una sola cosa —"pagado hasta"— y
-    # se lee de un vistazo en Supabase: NULL es "nunca ha pagado", una
-    # fecha es "pagó hasta ahí". Si el periodo de prueba se escribiera en
-    # esa columna, no habría forma de distinguir a quien pagó de quien
-    # solo está probando, que es justo lo que hay que saber para cobrar.
+    # Va en columna propia y no mezclado con `suscripcion_hasta` para que
+    # esa signifique una sola cosa —"pagado hasta"— y se lea de un vistazo
+    # en Supabase: NULL es "nunca ha pagado". Y para que borrarle el pago
+    # a alguien no le devuelva los días gratis.
+    #
+    # OJO con este número: el reloj arranca al registrarse, pero antes de
+    # poder usar la aplicación hay que cargar el inventario, que en una
+    # tienda son cientos de productos. Con 4 días es fácil que la prueba
+    # se acabe antes de que el tendero haya llegado a probar nada.
     DIAS_DE_PRUEBA: int = 4
 
     # Zona horaria del negocio. Determina qué se considera "hoy" al

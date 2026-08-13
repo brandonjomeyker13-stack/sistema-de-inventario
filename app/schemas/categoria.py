@@ -7,7 +7,7 @@ class CategoriaCrear(BaseModel):
     @field_validator("nombre")
     @classmethod
     def limpiar_nombre(cls, v: str) -> str:
-        return v.strip()
+        return " ".join(v.split())
 
 
 class CategoriaActualizar(CategoriaCrear):

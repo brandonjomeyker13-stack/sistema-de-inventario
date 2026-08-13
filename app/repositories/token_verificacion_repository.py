@@ -11,6 +11,16 @@ from app.models.token_verificacion import TokenVerificacion
 
 
 def crear(db: Session, usuario_id: str, token: str, horas_validez: int = 24) -> TokenVerificacion:
+    # Se barren los tokens muertos de este usuario antes de crear el
+    # nuevo. Cada reenvío deja una fila que ya no sirve para nada, y nadie
+    # las borraba: una cuenta que pide el enlace diez veces deja nueve
+    # filas basura para siempre.
+    db.query(TokenVerificacion).filter(
+        TokenVerificacion.usuario_id == usuario_id,
+        (TokenVerificacion.usado.is_(True))
+        | (TokenVerificacion.expira_en < datetime.now(timezone.utc)),
+    ).delete(synchronize_session=False)
+
     registro = TokenVerificacion(
         usuario_id=usuario_id,
         token=token,

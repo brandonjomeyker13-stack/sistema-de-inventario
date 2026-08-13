@@ -48,3 +48,9 @@ httpx~=0.28.1
 # Las imágenes slim de Linux a veces no la traen; este paquete la incluye
 # en el propio entorno de Python para que no dependa del contenedor.
 tzdata~=2026.2
+
+# Pruebas. Se instalan también en Render (van en el mismo archivo) porque
+# separarlas en un requirements-dev.txt añade un paso que se olvida; el
+# peso extra es despreciable y así `pytest` funciona en cualquier máquina
+# donde el proyecto esté instalado.
+pytest~=9.0.1

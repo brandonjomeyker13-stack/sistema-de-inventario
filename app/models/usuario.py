@@ -63,3 +63,4 @@ class Usuario(Base):
     # Google ya lo confirmó.
     email_verificado = Column(Boolean, nullable=False, default=False)
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    cedula = Column(String(20), nullable=True)

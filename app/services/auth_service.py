@@ -19,6 +19,7 @@ from app.core import correo
 from app.core.config import settings
 from app.core.exceptions import ErrorNegocio, CredencialesInvalidas
 from app.core.google import verificar_id_token
+from app.models.sesion import MOTIVO_LOGOUT
 from app.core.security import (
     hash_password, verificar_password, crear_access_token, crear_refresh_token,
     decodificar_token, generar_token_verificacion, hash_token,
@@ -121,19 +122,24 @@ def iniciar_sesion(
     # Pasado el plazo la cuenta queda en solo lectura, no fuera. Sigue
     # entrando y viendo sus datos; lo que no puede es registrar.
 
-    access_token = crear_access_token(usuario.id)
-    refresh_token = crear_refresh_token(usuario.id)
-
-    sesion_repository.crear(
-        db, usuario.id, hash_token(refresh_token),
-        expira_en=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
-        ip=ip, user_agent=user_agent,
-    )
-
-    return {"access_token": access_token, "refresh_token": refresh_token}
+    return _emitir_credenciales(db, usuario, ip, user_agent)
 
 
 def refrescar(db: Session, refresh_token: str) -> dict:
+    """Cambia un refresh token por un par nuevo, rotando el anterior.
+
+    La parte delicada es qué hacer cuando llega un token YA ROTADO. Hay
+    dos casos que en la base se ven igual y no son lo mismo:
+
+      - Llegó hace un instante: son dos pestañas del mismo tendero que
+        refrescaron a la vez. Pasa constantemente y no es un ataque. Antes
+        la segunda petición recibía un 401 y sacaba al tendero de la
+        sesión en mitad de una venta.
+      - Llegó días después: ese token lo tiene alguien más. Entonces se
+        corta la cadena entera (ver revocar_familia).
+
+    Los distingue `revocado_en` con una ventana de gracia de segundos.
+    """
     try:
         payload = decodificar_token(refresh_token)
     except Exception:
@@ -142,16 +148,33 @@ def refrescar(db: Session, refresh_token: str) -> dict:
     if payload.get("tipo") != "refresh":
         raise CredencialesInvalidas("Token inválido: se esperaba un refresh token")
 
-    sesion = sesion_repository.obtener_activa_por_hash(db, hash_token(refresh_token))
+    sesion = sesion_repository.obtener_por_hash(db, hash_token(refresh_token))
     if not sesion:
         raise CredencialesInvalidas("La sesión fue cerrada o ya no es válida")
+
+    if sesion_repository.esta_caducada(sesion):
+        raise CredencialesInvalidas("La sesión expiró. Vuelve a entrar.")
+
+    if sesion.revocado and not sesion_repository.en_ventana_de_gracia(sesion):
+        # Token rotado hace rato y presentado otra vez: hay una copia por
+        # ahí. Se cierra esta cadena y solo esta; los demás dispositivos
+        # del tendero tienen su propia familia y siguen dentro.
+        sesion_repository.revocar_familia(db, sesion.familia)
+        raise CredencialesInvalidas(
+            "Esta sesión se cerró por seguridad. Vuelve a iniciar sesión."
+        )
 
     usuario = usuario_repository.obtener_por_id(db, payload["sub"])
     if not usuario or not usuario.activo:
         raise CredencialesInvalidas("Usuario no encontrado o deshabilitado")
 
-    # Rotación: el refresh usado queda inválido de inmediato, se emite uno nuevo.
-    sesion_repository.revocar(db, sesion)
+    # Rotación: el refresh usado queda inválido de inmediato, se emite uno
+    # nuevo. Si ya estaba revocado (la carrera de arriba) no se vuelve a
+    # tocar: cambiarle `revocado_en` alargaría la ventana de gracia cada
+    # vez que se reintenta, y con reintentos automáticos eso la haría
+    # infinita.
+    if not sesion.revocado:
+        sesion_repository.revocar(db, sesion)
 
     nuevo_access = crear_access_token(usuario.id)
     nuevo_refresh = crear_refresh_token(usuario.id)
@@ -159,6 +182,9 @@ def refrescar(db: Session, refresh_token: str) -> dict:
         db, usuario.id, hash_token(nuevo_refresh),
         expira_en=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         ip=sesion.ip, user_agent=sesion.user_agent,
+        # Hereda la cadena: así se puede cortar de raíz si aparece un token
+        # robado, sin echar al tendero de sus otros dispositivos.
+        familia=sesion.familia,
     )
 
     return {"access_token": nuevo_access, "refresh_token": nuevo_refresh}
@@ -219,10 +245,16 @@ def restablecer_password(db: Session, token: str, password_nueva: str) -> None:
 def _emitir_credenciales(db: Session, usuario, ip=None, user_agent=None) -> dict:
     """Crea el par de tokens y registra la sesión.
 
-    Se extrajo de iniciar_sesion para que el login con Google emita
-    exactamente las mismas credenciales por el mismo camino. Duplicar
-    esto sería garantizar que una de las dos copias se quede atrás.
+    Único camino por el que se emiten credenciales: lo usan el login con
+    contraseña y el de Google. Duplicarlo sería garantizar que una de las
+    dos copias se quede atrás.
     """
+    # Aprovecha que ya se está escribiendo en esta tabla para barrer las
+    # sesiones muertas de este usuario. Iniciar sesión es poco frecuente,
+    # así que la limpieza no estorba a nadie y evita tener que montar una
+    # tarea programada solo para esto.
+    sesion_repository.purgar(db, usuario.id)
+
     access_token = crear_access_token(usuario.id)
     refresh_token = crear_refresh_token(usuario.id)
     sesion_repository.crear(
@@ -308,4 +340,8 @@ def cerrar_sesion(db: Session, refresh_token: str) -> None:
     más de una vez sin error, y no debe filtrar si la sesión existía)."""
     sesion = sesion_repository.obtener_activa_por_hash(db, hash_token(refresh_token))
     if sesion:
-        sesion_repository.revocar(db, sesion)
+        # Motivo explícito: una sesión cerrada por el usuario NO entra en
+        # la ventana de gracia de la rotación. Si entrara, el token
+        # seguiría valiendo medio minuto después de pulsar "cerrar sesión"
+        # — que es justo cuando alguien lo pulsa en un computador ajeno.
+        sesion_repository.revocar(db, sesion, motivo=MOTIVO_LOGOUT)

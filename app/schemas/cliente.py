@@ -12,7 +12,10 @@ class ClienteCrear(BaseModel):
     @field_validator("nombre")
     @classmethod
     def limpiar_nombre(cls, v: str) -> str:
-        return v.strip()
+        # Igual que en productos: "Rosa  Perez" con doble espacio se ve
+        # igual que "Rosa Perez" pero sería otro cliente, y su deuda
+        # quedaría repartida entre los dos.
+        return " ".join(v.split())
 
     @field_validator("telefono", "notas")
     @classmethod

@@ -21,6 +21,14 @@ def crear(db: Session, usuario_id: str, token: str) -> TokenPassword:
         TokenPassword.usado.is_(False),
     ).update({TokenPassword.usado: True})
 
+    # Y se borran los que ya caducaron hace tiempo. Invalidarlos basta
+    # para la seguridad, pero no para el tamaño de la tabla: sin esto,
+    # cada enlace pedido deja una fila que nadie vuelve a mirar.
+    db.query(TokenPassword).filter(
+        TokenPassword.usuario_id == usuario_id,
+        TokenPassword.expira_en < datetime.now(timezone.utc) - timedelta(days=7),
+    ).delete(synchronize_session=False)
+
     registro = TokenPassword(
         usuario_id=usuario_id,
         token=token,

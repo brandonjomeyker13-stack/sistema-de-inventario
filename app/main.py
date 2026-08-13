@@ -15,6 +15,7 @@ from app.core.exceptions import (
     ErrorNegocio, NoEncontrado, CredencialesInvalidas, SuscripcionVencida,
     CorreoSinVerificar,
 )
+from app.core.limites import DemasiadosIntentos
 from app.api.v1.router import router as api_v1_router
 
 app = FastAPI(title="NorBox API", version="1.0.0")
@@ -54,6 +55,18 @@ def manejar_correo_sin_verificar(request: Request, exc: CorreoSinVerificar):
     # 403 y no 402: el problema no es el dinero, y la pantalla que hay que
     # mostrar es otra (reenviar el enlace, no renovar el plan).
     return JSONResponse(status_code=403, content={"detalle": str(exc)})
+
+
+@app.exception_handler(DemasiadosIntentos)
+def manejar_demasiados_intentos(request: Request, exc: DemasiadosIntentos):
+    # Retry-After es estándar: dice cuántos segundos esperar. El frontend
+    # puede mostrar una cuenta atrás en vez de un error opaco que invita a
+    # seguir pulsando el botón.
+    return JSONResponse(
+        status_code=429,
+        content={"detalle": str(exc), "reintentar_en": exc.segundos},
+        headers={"Retry-After": str(exc.segundos)},
+    )
 
 
 @app.exception_handler(SuscripcionVencida)

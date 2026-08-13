@@ -67,6 +67,28 @@ def normalizar_fecha(valor: str) -> str:
     return limpio
 
 
+def fecha_valida(valor: str | None) -> str | None:
+    """La fecha si es utilizable, o None si no lo es. Nunca lanza.
+
+    Para columnas que se editan A MANO en el editor de Supabase, como
+    `usuarios.suscripcion_hasta`. Ahí un dedazo del tipo '31/12/2026' o
+    '2026-13-45' no es hipotético, y sin esto reventaba con ValueError en
+    la comprobación de acceso — es decir, un 500 en TODAS las rutas
+    protegidas de esa cuenta, y el mensaje del log no señalaba a la celda
+    que había que corregir.
+
+    Una fecha ilegible se trata como "sin fecha": deja la cuenta en solo
+    lectura, que es molesto pero reversible y visible. Mucho mejor que
+    tumbar la sesión entera.
+    """
+    if not valor:
+        return None
+    try:
+        return normalizar_fecha(valor)
+    except ValueError:
+        return None
+
+
 def sumar_dias(dias: int, desde: str | None = None) -> str:
     """Fecha resultante de sumar `dias` a `desde` (por defecto, hoy)."""
     base = datetime.strptime(desde, FORMATO_FECHA).date() if desde else ahora_local().date()

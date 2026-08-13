@@ -1,8 +1,22 @@
-venvenv/
+# Entorno virtual. Decía "venvenv/" por una errata, así que nunca ignoró
+# nada y git acabó rastreando más de 6.000 archivos de librerías.
+venv/
+.venv/
+
 __pycache__/
 *.pyc
+
+# Ningún archivo de entorno va al repositorio: llevan la contraseña de la
+# base de datos y las claves de Google, Groq y Resend. El comodín cubre
+# también las copias (.env.bak, .env.local).
 .env*
 # La plantilla SÍ va al repo: no tiene secretos y es lo que le dice a
 # quien clone qué variables hacen falta.
 !.env.ejemplo
+
+# Bases de datos locales de prueba.
+*.db
+*.sqlite3
+
 .vscode/
+.idea/

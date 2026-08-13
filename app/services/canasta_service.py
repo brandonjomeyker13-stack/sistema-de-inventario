@@ -80,21 +80,39 @@ def _iguales(a: str, b: str) -> bool:
     return secrets.compare_digest(a, b)
 
 
-def _resolver(db: Session, canasta, item):
-    """El producto de una línea, mirando también los códigos pendientes.
+def _resolver_todos(db: Session, canasta) -> dict[str, object]:
+    """Los productos de TODAS las líneas, en dos consultas como mucho.
+
+    Antes se resolvía línea por línea. El PC sondea esta vista cada
+    segundo y medio mientras hay una venta en curso, así que una canasta
+    de diez productos generaba once consultas por sondeo — unas
+    cuatrocientas por minuto contra Supabase, y con NullPool cada una abre
+    su propia conexión.
 
     Un código que se escaneó cuando no existía puede existir ya: el
     tendero lo dio de alta desde el PC mientras el celular seguía
     escaneando. Se resuelve al leer, sin escribir nada — un GET que
     modifica datos es una fuente de sorpresas.
     """
-    if item.producto_id:
-        return producto_repository.obtener_por_id(db, canasta.usuario_id, item.producto_id)
-    if item.codigo_pendiente:
-        return producto_repository.obtener_por_codigo_barras(
-            db, canasta.usuario_id, item.codigo_pendiente
-        )
-    return None
+    ids = [i.producto_id for i in canasta.items if i.producto_id]
+    codigos = [i.codigo_pendiente for i in canasta.items
+               if not i.producto_id and i.codigo_pendiente]
+
+    por_id = producto_repository.mapa_por_id(db, canasta.usuario_id, ids)
+    por_codigo = producto_repository.mapa_por_codigo_barras(db, canasta.usuario_id, codigos)
+
+    resueltos: dict[str, object] = {}
+    for item in canasta.items:
+        if item.producto_id:
+            producto = por_id.get(item.producto_id)
+        elif item.codigo_pendiente:
+            # El mapa está indexado por el código normalizado, que es como
+            # se guarda; el pendiente puede haberse escrito en otra forma.
+            producto = por_codigo.get(normalizar(item.codigo_pendiente))
+        else:
+            producto = None
+        resueltos[item.id] = producto
+    return resueltos
 
 
 def _pintar(db: Session, canasta) -> dict:
@@ -107,9 +125,10 @@ def _pintar(db: Session, canasta) -> dict:
     lineas = []
     total = 0.0
     pendientes = 0
+    productos = _resolver_todos(db, canasta)
 
     for item in canasta.items:
-        producto = _resolver(db, canasta, item)
+        producto = productos.get(item.id)
 
         if not producto:
             if item.codigo_pendiente:

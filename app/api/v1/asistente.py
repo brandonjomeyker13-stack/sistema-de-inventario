@@ -15,6 +15,7 @@ normales, y solo tras la confirmación del tendero.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core import limites
 from app.database.session import get_db
 from app.api.deps import obtener_usuario_actual, exigir_suscripcion_activa
 from app.models.usuario import Usuario
@@ -42,6 +43,23 @@ def preguntar(
     negocio: nunca se puede preguntar por el de otro, porque el usuario
     sale del token y no de la petición.
     """
+    # Límite POR CUENTA, no por IP: aquí no hay nada que adivinar, el
+    # problema es el gasto. Cada pregunta arma el contexto (varias
+    # consultas a Supabase) y llama a Groq, que cuesta dinero y tiene
+    # cuota por minuto compartida entre TODOS los clientes.
+    #
+    # Sin esto, una tienda con un bucle mal hecho en el frontend —o
+    # simplemente alguien que deja pulsado el botón— agota la cuota y deja
+    # sin asistente a las demás. La cuenta no se puede rotar como una IP,
+    # así que el límite muerde de verdad.
+    limites.exigir(
+        f"asistente:{usuario_actual.id}", maximo=20, segundos=60,
+        mensaje="Estás preguntando muy rápido. Espera un momento.",
+    )
+    limites.exigir(
+        f"asistente-dia:{usuario_actual.id}", maximo=300, segundos=86400,
+        mensaje="Llegaste al máximo de preguntas por hoy. Mañana se reinicia.",
+    )
     return asistente_service.preguntar(
         db, usuario_actual.id, datos.pregunta,
         [t.model_dump() for t in datos.historial],
