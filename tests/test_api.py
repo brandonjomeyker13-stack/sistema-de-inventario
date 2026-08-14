@@ -145,6 +145,37 @@ def test_suscripcion_vencida_devuelve_402(cliente):
     assert r.status_code == 402
 
 
+def test_la_cabecera_idempotency_key_evita_la_venta_duplicada(cliente):
+    """La ruta que va a usar Lovable de verdad.
+
+    Que funcione llamando al servicio no garantiza que funcione por HTTP:
+    si el nombre del parámetro no correspondiera a la cabecera, FastAPI la
+    ignoraría en silencio y cada reintento crearía una venta.
+    """
+    login = cliente.post("/api/v1/auth/login",
+                         json={"email": "tienda@ejemplo.com", "password": "clave-de-prueba"})
+    cabeceras = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    cliente.post("/api/v1/productos", headers=cabeceras, json={
+        "nombre": "Arroz", "cantidad": 10, "precio": 3000, "cuanto_costo": 2000,
+    })
+
+    venta = {"nombre_producto": "Arroz", "cantidad": 2}
+    con_clave = {**cabeceras, "Idempotency-Key": "cobro-de-las-3pm"}
+
+    primera = cliente.post("/api/v1/ventas", headers=con_clave, json=venta)
+    segunda = cliente.post("/api/v1/ventas", headers=con_clave, json=venta)
+
+    assert primera.status_code == 201
+    assert segunda.status_code == 201
+    assert primera.json()["id"] == segunda.json()["id"]
+
+    # Y el stock se descontó UNA vez.
+    productos = cliente.get("/api/v1/productos", headers=cabeceras).json()
+    arroz = next(p for p in productos if p["nombre"] == "Arroz")
+    assert arroz["cantidad"] == 8
+
+
 def test_una_fecha_corrupta_no_devuelve_500(cliente):
     """Esa columna se edita a mano. Un dedazo no puede tumbar la cuenta."""
     login = cliente.post("/api/v1/auth/login",

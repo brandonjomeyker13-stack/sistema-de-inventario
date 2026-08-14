@@ -313,12 +313,18 @@ def descartar(db: Session, canasta_id: str, usuario_id: str) -> None:
 
 def cobrar(db: Session, canasta_id: str, usuario_id: str, cliente_id: str | None = None,
            es_fiado: bool = False, dias_plazo: int | None = None,
-           fecha_vencimiento: str | None = None):
+           fecha_vencimiento: str | None = None, clave_idempotencia: str | None = None):
     """Convierte la canasta en venta real.
 
     No duplica nada: delega en venta_service.vender, que ya sabe descontar
     el stock de varios productos en una sola transacción y validar el
     fiado. La canasta solo aporta la lista.
+
+    Si no llega `clave_idempotencia`, se usa el id de la canasta. Es la
+    clave natural aquí: una canasta se cobra una sola vez, así que dos
+    peticiones de cobro sobre la misma canasta SIEMPRE son un reintento,
+    nunca dos ventas distintas. Con eso, el cobro desde el celular queda
+    protegido aunque el frontend no mande nada.
     """
     canasta = _autorizar(db, canasta_id, usuario_id, None, exige_dueno=True)
     if canasta.proposito != PROPOSITO_VENTA:
@@ -333,6 +339,7 @@ def cobrar(db: Session, canasta_id: str, usuario_id: str, cliente_id: str | None
     venta = venta_service.vender(
         db, usuario_id, items, cliente_id=cliente_id, es_fiado=es_fiado,
         dias_plazo=dias_plazo, fecha_vencimiento=fecha_vencimiento,
+        clave_idempotencia=clave_idempotencia or f"canasta:{canasta.id}",
     )
     canasta_repository.marcar_cobrada(db, canasta, venta.id)
     return venta

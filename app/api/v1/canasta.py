@@ -154,17 +154,24 @@ def quitar_item(
 def cobrar(
     canasta_id: str,
     datos: CanastaCobrar,
+    idempotency_key: str | None = Header(default=None),
     usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
     """Convierte la canasta en venta: descuenta stock y cierra el carrito.
 
     Solo con sesión. El token del celular nunca puede cobrar.
+
+    Es idempotente sin que el frontend haga nada: la clave por defecto es
+    el id de la canasta, y una canasta se cobra una sola vez. Si la señal
+    se cae justo después de cobrar, reintentar devuelve la misma venta en
+    lugar de descontar el stock otra vez.
     """
     return canasta_service.cobrar(
         db, canasta_id, usuario_actual.id, cliente_id=datos.cliente_id,
         es_fiado=datos.es_fiado, dias_plazo=datos.dias_plazo,
         fecha_vencimiento=datos.fecha_vencimiento,
+        clave_idempotencia=idempotency_key,
     )
 
 

@@ -34,6 +34,7 @@ def vender(
     db: Session, usuario_id: str, items: list[dict],
     cliente_id: str | None = None, es_fiado: bool = False,
     dias_plazo: int | None = None, fecha_vencimiento: str | None = None,
+    clave_idempotencia: str | None = None,
 ):
     """Registra una venta de uno o varios productos.
 
@@ -42,9 +43,24 @@ def vender(
 
     Si `es_fiado`, la mercancía sale igual (el stock baja) pero queda una
     deuda a nombre del cliente.
+
+    `clave_idempotencia` la genera el frontend UNA VEZ por venta (cuando
+    el tendero pulsa cobrar) y la repite en cada reintento. Sirve para el
+    caso de la tienda con mala señal: la petición sale, la conexión se cae
+    antes de la respuesta, y nadie sabe si la venta quedó registrada. Con
+    la clave, reintentar devuelve la misma venta en vez de crear otra.
     """
     if not items:
         raise ErrorNegocio("La venta no tiene productos")
+
+    # Atajo antes de tocar nada: si esta venta ya se registró, se devuelve
+    # tal cual. No es solo por rapidez — así el reintento no vuelve a
+    # resolver productos ni a validar stock, y por tanto no puede fallar
+    # con "no hay suficiente" por culpa de su propio descuento anterior.
+    if clave_idempotencia:
+        ya_registrada = venta_repository.obtener_por_clave(db, usuario_id, clave_idempotencia)
+        if ya_registrada:
+            return ya_registrada
 
     if es_fiado and not cliente_id:
         # Una deuda sin deudor es una pérdida disfrazada de venta.
@@ -104,7 +120,7 @@ def vender(
 
     return venta_repository.crear_venta_atomica(
         db, usuario_id, lineas, hoy_local(), cliente_id=cliente_id, es_fiado=es_fiado,
-        fecha_vencimiento=vencimiento,
+        fecha_vencimiento=vencimiento, clave_idempotencia=clave_idempotencia,
     )
 
 

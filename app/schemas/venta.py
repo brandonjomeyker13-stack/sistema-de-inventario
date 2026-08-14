@@ -57,6 +57,18 @@ class VentaCrear(BaseModel):
             return None
         return normalizar_fecha(v)
 
+    # Identificador único de ESTA venta, generado por el frontend cuando
+    # el tendero pulsa cobrar y repetido en cada reintento.
+    #
+    # Que lo genere el cliente y no el servidor es justo el punto: el
+    # servidor no puede distinguir "el mismo cobro reintentado" de "dos
+    # clientes que compraron lo mismo seguido", y en una tienda lo segundo
+    # pasa todo el rato (dos personas comprando un pan). Solo quien pulsó
+    # el botón sabe si fue una vez o dos.
+    #
+    # Opcional: vender desde el PC con buena conexión no lo necesita.
+    clave_idempotencia: str | None = Field(default=None, max_length=64)
+
     # Campos de la forma antigua (una venta = un producto).
     nombre_producto: str | None = None
     codigo_barras: str | None = None

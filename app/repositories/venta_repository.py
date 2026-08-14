@@ -10,6 +10,7 @@ en ese instante).
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import ErrorNegocio
 from app.models.venta import Venta
@@ -19,10 +20,26 @@ from app.models.movimiento import VENTA as MOVIMIENTO_VENTA
 from app.repositories import movimiento_repository
 
 
+def obtener_por_clave(db: Session, usuario_id: str, clave: str) -> Venta | None:
+    """La venta ya registrada con esa clave de idempotencia, si existe.
+
+    Incluye las eliminadas a propósito: si el tendero anuló la venta y el
+    celular reintenta la petición original que se había quedado sin
+    respuesta, lo correcto es devolverle la venta anulada, no crear una
+    nueva. Resucitar una venta que alguien decidió borrar sería peor que
+    el problema que resuelve.
+    """
+    return (
+        db.query(Venta)
+        .filter(Venta.usuario_id == usuario_id, Venta.clave_idempotencia == clave)
+        .first()
+    )
+
+
 def crear_venta_atomica(
     db: Session, usuario_id: str, lineas: list[dict], fecha: str,
     cliente_id: str | None = None, es_fiado: bool = False,
-    fecha_vencimiento: str | None = None,
+    fecha_vencimiento: str | None = None, clave_idempotencia: str | None = None,
 ) -> Venta:
     """Registra una venta de uno o varios productos, todo o nada.
 
@@ -33,6 +50,11 @@ def crear_venta_atomica(
     ahora se repite por cada producto. Si el último ítem de la canasta
     falla, se deshacen también los descuentos de los anteriores: por eso
     todo ocurre en una sola transacción y el commit está al final.
+
+    `clave_idempotencia` hace que reintentar no duplique. Se apoya en el
+    índice único (usuario_id, clave), no en una comprobación previa: dos
+    reintentos que llegan a la vez pasarían los dos cualquier comprobación
+    y los dos insertarían.
     """
     if not lineas:
         raise ErrorNegocio("La venta no tiene productos")
@@ -87,6 +109,7 @@ def crear_venta_atomica(
         cliente_id=cliente_id,
         es_fiado=es_fiado,
         fecha_vencimiento=fecha_vencimiento,
+        clave_idempotencia=clave_idempotencia,
     )
     venta.items = [
         VentaItem(
@@ -100,21 +123,45 @@ def crear_venta_atomica(
         for l in lineas
     ]
 
-    db.add(venta)
-    # flush y no commit: necesitamos el id de la venta para enlazar los
-    # movimientos, pero todo tiene que guardarse junto. Si esto fuera un
-    # commit y el registro del libro fallara después, quedaría una venta
-    # sin su movimiento y el inventario dejaría de ser auditable.
-    db.flush()
+    try:
+        db.add(venta)
+        # flush y no commit: necesitamos el id de la venta para enlazar los
+        # movimientos, pero todo tiene que guardarse junto. Si esto fuera un
+        # commit y el registro del libro fallara después, quedaría una venta
+        # sin su movimiento y el inventario dejaría de ser auditable.
+        #
+        # OJO: el INSERT ocurre AQUÍ, no en el commit. Por eso el `try`
+        # empieza antes del flush y no solo alrededor del commit — es
+        # justo en este punto donde salta el choque de claves repetidas.
+        db.flush()
 
-    for linea in lineas:
-        producto = linea["producto"]
-        movimiento_repository.registrar(
-            db, usuario_id, producto.id, MOVIMIENTO_VENTA, -linea["cantidad"],
-            stock_previo[producto.id], fecha, venta_id=venta.id,
-        )
+        for linea in lineas:
+            producto = linea["producto"]
+            movimiento_repository.registrar(
+                db, usuario_id, producto.id, MOVIMIENTO_VENTA, -linea["cantidad"],
+                stock_previo[producto.id], fecha, venta_id=venta.id,
+            )
 
-    db.commit()
+        db.commit()
+    except IntegrityError:
+        # Otra petición con la MISMA clave ganó la carrera. Es el caso que
+        # justifica toda esta columna: el celular reintentó porque no le
+        # llegó la respuesta, no porque quisiera vender dos veces.
+        #
+        # El rollback deshace TODO lo de esta transacción, incluidos los
+        # descuentos de stock de más arriba. Por eso el commit está al
+        # final y hay uno solo: si el stock se hubiera confirmado antes, el
+        # duplicado se habría evitado en la tabla de ventas pero el
+        # inventario ya estaría descontado dos veces.
+        db.rollback()
+        if clave_idempotencia:
+            existente = obtener_por_clave(db, usuario_id, clave_idempotencia)
+            if existente:
+                return existente
+        # Sin clave, o si la venta no aparece, el choque es de otra cosa y
+        # no hay que disimularlo.
+        raise
+
     db.refresh(venta)
     return venta
 
