@@ -39,6 +39,7 @@ def _validar_categoria(db: Session, usuario_id: str, categoria_id: str | None):
 def agregar(
     db: Session, usuario_id: str, nombre: str, cantidad: int, precio: float, costo: float,
     codigo_barras: str | None = None, categoria_id: str | None = None,
+    controla_stock: bool = True,
 ):
     if producto_repository.existe_nombre(db, usuario_id, nombre):
         raise ErrorNegocio(f"Ya existe un producto llamado '{nombre.strip()}'")
@@ -46,13 +47,18 @@ def agregar(
         raise ErrorNegocio(f"Ya tienes un producto con el código {codigo_barras.strip()}")
     _validar_categoria(db, usuario_id, categoria_id)
     return producto_repository.crear(
-        db, usuario_id, nombre, cantidad, precio, costo, codigo_barras, categoria_id
+        db, usuario_id, nombre, cantidad, precio, costo, codigo_barras, categoria_id,
+        # Un servicio nace en cero y se queda ahí. Guardar la cantidad que
+        # venga en el formulario dejaría un número que no significa nada y
+        # que aparecería en pantalla como si fueran existencias reales.
+        controla_stock=controla_stock,
     )
 
 
 def editar(
     db: Session, usuario_id: str, producto_id: str, nombre: str, cantidad: int, precio: float,
     costo: float, codigo_barras: str | None = None, categoria_id: str | None = None,
+    controla_stock: bool | None = None,
 ):
     producto = producto_repository.obtener_por_id(db, usuario_id, producto_id)
     if not producto:
@@ -65,20 +71,30 @@ def editar(
         raise ErrorNegocio(f"Otro producto ya usa el código {codigo_barras.strip()}")
     _validar_categoria(db, usuario_id, categoria_id)
 
+    # None = el frontend no mandó el campo, así que se respeta lo que ya
+    # estaba. Tratar la ausencia como False convertiría en servicio a
+    # cualquier producto editado desde una pantalla que no incluya la
+    # casilla — y perdería sus existencias de vista.
+    lleva_stock = producto.controla_stock if controla_stock is None else controla_stock
+
     # Editar la cantidad desde el formulario también mueve el stock, así
     # que también va al libro. Si no, quedaría un hueco justo en la vía
     # más fácil de cambiar existencias, y el historial dejaría de cuadrar.
     #
     # El movimiento se registra ANTES de actualizar: registrar() no hace
     # commit, y el commit de actualizar() guarda los dos a la vez.
-    if cantidad != producto.cantidad:
+    #
+    # Un servicio no genera ajuste: su cantidad no significa nada, así que
+    # una fila diciendo que pasó de 0 a 50 sería ruido en el libro.
+    if lleva_stock and cantidad != producto.cantidad:
         movimiento_repository.registrar(
             db, usuario_id, producto_id, AJUSTE, cantidad - producto.cantidad,
             producto.cantidad, hoy_local(), "Editado desde el formulario de producto",
         )
 
     return producto_repository.actualizar(
-        db, producto, nombre, cantidad, precio, costo, codigo_barras, categoria_id
+        db, producto, nombre, cantidad, precio, costo, codigo_barras, categoria_id,
+        controla_stock=lleva_stock,
     )
 
 

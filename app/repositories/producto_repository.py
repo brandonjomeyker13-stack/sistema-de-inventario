@@ -161,9 +161,16 @@ def existe_nombre(db: Session, usuario_id: str, nombre: str, excluir_id: str | N
 def crear(
     db: Session, usuario_id: str, nombre: str, cantidad: int, precio: float, costo: float,
     codigo_barras: str | None = None, categoria_id: str | None = None,
+    controla_stock: bool = True,
 ) -> Producto:
     producto = Producto(
-        usuario_id=usuario_id, nombre=nombre.strip(), cantidad=cantidad, precio=precio, cuanto_costo=costo,
+        usuario_id=usuario_id, nombre=nombre.strip(),
+        # Un servicio se guarda siempre en cero: su "cantidad" no
+        # significa nada, y dejar ahí lo que viniera del formulario
+        # pintaría en pantalla unas existencias que no existen.
+        cantidad=cantidad if controla_stock else 0,
+        controla_stock=controla_stock,
+        precio=precio, cuanto_costo=costo,
         # Normalizado también aquí, no solo en el schema: el servicio se
         # llama desde sitios que no pasan por Pydantic (la recepción de
         # mercancía, por ejemplo) y el dato guardado tiene que ser
@@ -180,9 +187,12 @@ def crear(
 def actualizar(
     db: Session, producto: Producto, nombre: str, cantidad: int, precio: float, costo: float,
     codigo_barras: str | None = None, categoria_id: str | None = None,
+    controla_stock: bool | None = None,
 ) -> Producto:
     producto.nombre = nombre.strip()
-    producto.cantidad = cantidad
+    if controla_stock is not None:
+        producto.controla_stock = controla_stock
+    producto.cantidad = cantidad if producto.controla_stock else 0
     producto.precio = precio
     producto.cuanto_costo = costo
     # Cadena vacía se guarda como NULL: si no, el índice único trataría

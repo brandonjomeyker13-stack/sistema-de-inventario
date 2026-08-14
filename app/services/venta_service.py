@@ -106,7 +106,11 @@ def vender(
     lineas = []
     for entrada in acumulado.values():
         producto, cantidad = entrada["producto"], entrada["cantidad"]
-        if producto.cantidad < cantidad:
+        # Los servicios no tienen existencias que agotar: una papelería
+        # puede sacar la fotocopia número mil igual que la primera. Sin
+        # esta excepción había que inventarles un stock falso y el sistema
+        # se negaba a vender en cuanto llegaba a cero.
+        if producto.controla_stock and producto.cantidad < cantidad:
             raise ErrorNegocio(
                 f"No puedes vender más '{producto.nombre}' de lo que hay en stock "
                 f"(pides {cantidad}, disponible: {producto.cantidad})"
@@ -194,7 +198,29 @@ def resumen_ultimos_dias(db: Session, usuario_id: str, dias: int) -> dict:
 
 
 def eliminar_venta(db: Session, usuario_id: str, venta_id: str):
+    """Anula una venta y devuelve la mercancía al inventario.
+
+    `obtener_por_id` ya filtra las anuladas, así que anular dos veces
+    responde "no encontrada" en vez de devolver el stock por partida
+    doble.
+    """
     venta = venta_repository.obtener_por_id(db, usuario_id, venta_id)
     if not venta:
         raise NoEncontrado("Venta no encontrada")
+
+    # Un fiado con abonos es plata que el cliente YA entregó. Anular la
+    # venta dejaría esos abonos apuntando a algo que no existe: el dinero
+    # desaparecería del sistema sin que nadie lo note, y la señora seguiría
+    # creyendo que abonó.
+    #
+    # Se bloquea en vez de borrar los abonos en cascada porque esto no es
+    # un problema técnico sino de cuentas, y quien tiene que decidirlo es
+    # el tendero — devolviéndole la plata o dejando la deuda saldada.
+    if venta.total_abonado > 0:
+        raise ErrorNegocio(
+            f"Esta venta tiene ${venta.total_abonado:,.0f} en abonos registrados. "
+            "Antes de anularla hay que resolver esa plata: devuélvele los abonos "
+            "al cliente o déjale la deuda saldada."
+        )
+
     venta_repository.eliminar(db, venta)

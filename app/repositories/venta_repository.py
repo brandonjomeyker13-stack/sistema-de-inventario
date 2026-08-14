@@ -16,7 +16,10 @@ from app.core.exceptions import ErrorNegocio
 from app.models.venta import Venta
 from app.models.venta_item import VentaItem
 from app.models.producto import Producto
-from app.models.movimiento import VENTA as MOVIMIENTO_VENTA
+from app.models.movimiento import (
+    VENTA as MOVIMIENTO_VENTA,
+    DEVOLUCION as MOVIMIENTO_DEVOLUCION,
+)
 from app.repositories import movimiento_repository
 
 
@@ -68,6 +71,12 @@ def crear_venta_atomica(
     for linea in lineas:
         producto = linea["producto"]
         cantidad = linea["cantidad"]
+        if not producto.controla_stock:
+            # Servicio (una fotocopia, un plastificado): no hay existencias
+            # que descontar. Tampoco hay carrera que vigilar — dos cajeros
+            # vendiendo la misma fotocopia a la vez no se quitan nada.
+            continue
+
         filas_afectadas = (
             db.query(Producto)
             .filter(
@@ -137,6 +146,14 @@ def crear_venta_atomica(
 
         for linea in lineas:
             producto = linea["producto"]
+            # Los servicios no van al libro de movimientos. El libro
+            # existe para auditar existencias sumando: cada fila cumple
+            # `stock_antes + cantidad == stock_despues`. Una fotocopia no
+            # mueve existencias, así que su fila rompería esa igualdad o
+            # sería una línea vacía que solo ensucia el historial. La
+            # venta queda registrada en `ventas`, que es donde toca.
+            if not producto.controla_stock:
+                continue
             movimiento_repository.registrar(
                 db, usuario_id, producto.id, MOVIMIENTO_VENTA, -linea["cantidad"],
                 stock_previo[producto.id], fecha, venta_id=venta.id,
@@ -240,5 +257,59 @@ def obtener_por_id(db: Session, usuario_id: str, venta_id: str) -> Venta | None:
 
 
 def eliminar(db: Session, venta: Venta) -> None:
+    """Anula una venta Y devuelve la mercancía al inventario.
+
+    Antes esto solo marcaba `eliminado = True`. El stock NO volvía, y en el
+    libro de movimientos no quedaba nada: el tendero escaneaba mal, borraba
+    la venta, y el inventario se quedaba corto para siempre sin que
+    ninguna pantalla lo delatara. Los números dejaban de cuadrar y no
+    había forma de averiguar por qué.
+
+    Todo en una sola transacción: si el libro fallara a mitad, quedaría
+    stock devuelto sin rastro de por qué — que es exactamente el problema
+    que se está arreglando.
+    """
+    lineas = _lineas_devueltas(venta)
+
+    for producto_id, cantidad in lineas:
+        producto = (
+            db.query(Producto)
+            .filter(Producto.id == producto_id, Producto.usuario_id == venta.usuario_id)
+            .first()
+        )
+        if not producto:
+            # El producto se borró después de venderse. No hay dónde
+            # devolver el stock, pero la venta sí se anula: negarse a
+            # anularla dejaría al tendero atrapado con una venta falsa que
+            # no puede quitar.
+            continue
+        if not producto.controla_stock:
+            # Un servicio no se devuelve al inventario: nunca salió de él.
+            # Anular una venta de fotocopias quita la plata de las cuentas
+            # y ya está.
+            continue
+
+        stock_antes = producto.cantidad
+        producto.cantidad = stock_antes + cantidad
+        movimiento_repository.registrar(
+            db, venta.usuario_id, producto.id, MOVIMIENTO_DEVOLUCION, cantidad,
+            stock_antes, venta.fecha, motivo="Venta anulada", venta_id=venta.id,
+        )
+
     venta.eliminado = True
     db.commit()
+
+
+def _lineas_devueltas(venta: Venta) -> list[tuple[str, int]]:
+    """Qué productos y cuántas unidades hay que devolver.
+
+    Normalmente salen de `venta.items`. El caso del `elif` es para las
+    ventas anteriores a la migración 0003, cuando una venta era un solo
+    producto y no había tabla de ítems: siguen en la base y también deben
+    poder anularse.
+    """
+    if venta.items:
+        return [(i.producto_id, i.cantidad) for i in venta.items if i.producto_id]
+    if venta.producto_id:
+        return [(venta.producto_id, venta.cantidad_vendida)]
+    return []

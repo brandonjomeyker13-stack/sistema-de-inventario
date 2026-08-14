@@ -69,9 +69,16 @@ def agregar(
     usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
     db: Session = Depends(get_db),
 ):
+    """Da de alta un producto o un servicio.
+
+    Con `controla_stock: false` se crea un SERVICIO (fotocopia, impresión,
+    plastificado): se vende y deja ganancia como cualquier producto, pero
+    no lleva existencias — no se descuenta al venderlo ni sale en las
+    alertas de "se está acabando".
+    """
     return product_service.agregar(
         db, usuario_actual.id, datos.nombre, datos.cantidad, datos.precio, datos.cuanto_costo,
-        datos.codigo_barras, datos.categoria_id,
+        datos.codigo_barras, datos.categoria_id, controla_stock=datos.controla_stock,
     )
 
 
@@ -85,6 +92,7 @@ def editar(
     return product_service.editar(
         db, usuario_actual.id, producto_id, datos.nombre, datos.cantidad, datos.precio,
         datos.cuanto_costo, datos.codigo_barras, datos.categoria_id,
+        controla_stock=datos.controla_stock,
     )
 
 

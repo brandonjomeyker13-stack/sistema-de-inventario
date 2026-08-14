@@ -147,6 +147,10 @@ def _pintar(db: Session, canasta) -> dict:
                     "stock_disponible": 0,
                     "hay_stock": False,
                     "existe": False,
+                    # Todavía no es ningún producto, así que no se sabe si
+                    # será servicio o no. Se asume que sí lleva stock, que
+                    # es lo más común.
+                    "controla_stock": True,
                     # None = el formato no lleva dígito de control (Code
                     # 128, QR propio). False = la lectura casi seguro está
                     # mal, avisar antes de crear un producto fantasma.
@@ -168,8 +172,13 @@ def _pintar(db: Session, canasta) -> dict:
             "precio_unitario": producto.precio,
             "subtotal": subtotal,
             # Para que el PC pueda avisar en rojo antes de intentar cobrar.
+            # Un servicio siempre tiene "stock": pintar una fotocopia en
+            # rojo por tener cero existencias asustaría al tendero con un
+            # problema que no existe, y le haría dudar de las alertas de
+            # los productos que sí se acaban.
             "stock_disponible": producto.cantidad,
-            "hay_stock": producto.cantidad >= item.cantidad,
+            "hay_stock": (not producto.controla_stock) or producto.cantidad >= item.cantidad,
+            "controla_stock": producto.controla_stock,
             "existe": True,
             "checksum_ok": None,
         })

@@ -49,6 +49,9 @@ class CanastaLineaOut(BaseModel):
     # False cuando la canasta pide más de lo que hay. No impide seguir
     # agregando; sirve para avisar en pantalla antes de intentar cobrar.
     hay_stock: bool
+    # False = es un servicio (fotocopia, plastificado). El frontend lo usa
+    # para no pintar existencias de algo que no las tiene.
+    controla_stock: bool = True
     # False = hay que dar de alta ese código antes de poder recibir.
     existe: bool = True
     # Solo en líneas pendientes. False = el dígito de control no cuadra,

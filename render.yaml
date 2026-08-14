@@ -4,6 +4,10 @@ services:
     # `runtime` es la clave actual; `env` era el nombre viejo y sigue
     # funcionando, pero conviene no quedarse en el deprecado.
     runtime: python
+    # OJO al pagar: si subes el plan desde el panel pero esta línea sigue
+    # diciendo `free`, una sincronización del Blueprint puede devolverte al
+    # plan gratuito — y con él, el servicio durmiéndose a los 15 minutos.
+    # Cambia esto a `starter` EN EL MISMO MOMENTO en que pagues.
     plan: free
     # Render considera el servicio vivo cuando esta ruta responde 200. Sin
     # esto solo comprueba que el puerto esté abierto, y un arranque que
@@ -44,8 +48,13 @@ services:
         sync: false
       - key: CORREO_REMITENTE
         sync: false
+      # Dominio propio. Iba fijo al de lovable.app, y como está declarado
+      # con `value` y no con `sync: false`, una sincronización del
+      # Blueprint le pisaba el valor puesto a mano en el panel — y los
+      # correos de verificación y de recuperar contraseña volvían a
+      # apuntar al dominio viejo sin ningún error visible.
       - key: URL_FRONTEND
-        value: https://stocktrack-ai.lovable.app
+        value: https://stocktraking.com
       - key: GROQ_MODEL
         value: openai/gpt-oss-20b
       # Empieza en false. Actívalo solo cuando confirmes que los correos

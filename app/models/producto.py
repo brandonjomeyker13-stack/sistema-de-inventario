@@ -34,6 +34,26 @@ class Producto(Base):
     cantidad = Column(Integer, nullable=False, default=0)
     precio = Column(Float, nullable=False, default=0)
     cuanto_costo = Column(Float, nullable=False, default=0)
+
+    # False = es un SERVICIO: no tiene existencias que contar.
+    #
+    # Una papelería vende fotocopias, impresiones, plastificado, anillado.
+    # No se te "acaban" las fotocopias. Sin esta casilla había que
+    # inventarles un stock falso, y el día que llegaba a cero el sistema
+    # se negaba a vender algo que la papelería sí podía hacer.
+    #
+    # Un servicio no descuenta stock al venderse, no aparece en las
+    # alertas de "por agotarse", y no cuenta como capital parado — no hay
+    # plata dormida en una fotocopia que todavía no se ha hecho.
+    #
+    # Lo que SÍ hace igual: registrar la venta, calcular la ganancia
+    # (precio menos costo del papel y el tóner) y aparecer en los más
+    # vendidos. Para el análisis del negocio es un producto más.
+    #
+    # Por defecto True: casi todo lo que vende una tienda sí se cuenta, y
+    # el valor seguro es el que avisa cuando algo se está acabando.
+    controla_stock = Column(Boolean, nullable=False, default=True)
+
     eliminado = Column(Boolean, nullable=False, default=False)
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     actualizado_en = Column(

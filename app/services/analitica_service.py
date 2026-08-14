@@ -66,6 +66,12 @@ def capital_parado(db: Session, usuario_id: str, dias: int = DIAS_SIN_MOVIMIENTO
 
     parados = []
     for p in inventario:
+        if not p["controla_stock"]:
+            # Un servicio no tiene plata dormida: nadie compró por
+            # adelantado un lote de fotocopias. Que lleve dos meses sin
+            # venderse no es capital parado, es simplemente un servicio
+            # que no se pide.
+            continue
         if p["stock"] <= 0:
             # Sin existencias no hay plata parada, por mucho que no se venda.
             continue
@@ -118,6 +124,13 @@ def por_agotarse(db: Session, usuario_id: str, dias_historial: int = 30) -> list
 
     alertas = []
     for p in inventario:
+        if not p["controla_stock"]:
+            # Las fotocopias no se agotan. Sin este filtro, el servicio más
+            # vendido de la papelería encabezaría permanentemente la
+            # alerta de "se te está acabando" — y una alerta que siempre
+            # está encendida deja de mirarse, incluida la de los productos
+            # que sí se acaban.
+            continue
         ritmo = ritmos.get(p["id"], 0)
         if ritmo <= 0:
             continue

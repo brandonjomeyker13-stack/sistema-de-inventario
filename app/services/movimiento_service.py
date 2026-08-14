@@ -25,6 +25,27 @@ def _producto(db: Session, usuario_id: str, producto_id: str):
     return producto
 
 
+def _producto_con_stock(db: Session, usuario_id: str, producto_id: str):
+    """Como _producto, pero rechaza los servicios.
+
+    Entradas, mermas y ajustes son operaciones sobre EXISTENCIAS, y un
+    servicio no las tiene: no llegan fotocopias del proveedor, no se dañan
+    diez plastificados, y no se pueden contar los anillados que quedan en
+    la estantería.
+
+    Se rechaza con un mensaje explícito en vez de dejarlo pasar sin
+    efecto. Si se ignorara en silencio, el tendero registraría la entrada,
+    no vería cambiar nada, y volvería a intentarlo pensando que falló.
+    """
+    producto = _producto(db, usuario_id, producto_id)
+    if not producto.controla_stock:
+        raise ErrorNegocio(
+            f"'{producto.nombre}' es un servicio y no lleva existencias, "
+            "así que no se le pueden registrar entradas, mermas ni ajustes."
+        )
+    return producto
+
+
 def registrar_entrada(db: Session, usuario_id: str, producto_id: str, cantidad: int,
                       costo_unitario: float | None = None, motivo: str | None = None):
     """Llegó mercancía. Suma al stock y deja constancia.
@@ -37,7 +58,7 @@ def registrar_entrada(db: Session, usuario_id: str, producto_id: str, cantidad: 
     if cantidad <= 0:
         raise ErrorNegocio("La cantidad de una entrada debe ser mayor que cero")
 
-    producto = _producto(db, usuario_id, producto_id)
+    producto = _producto_con_stock(db, usuario_id, producto_id)
     stock_antes = producto.cantidad
 
     producto.cantidad = stock_antes + cantidad
@@ -66,7 +87,7 @@ def registrar_merma(db: Session, usuario_id: str, producto_id: str, cantidad: in
     if cantidad <= 0:
         raise ErrorNegocio("La cantidad de una merma debe ser mayor que cero")
 
-    producto = _producto(db, usuario_id, producto_id)
+    producto = _producto_con_stock(db, usuario_id, producto_id)
     stock_antes = producto.cantidad
     if cantidad > stock_antes:
         raise ErrorNegocio(
@@ -94,7 +115,7 @@ def ajustar(db: Session, usuario_id: str, producto_id: str, stock_real: int,
     if stock_real < 0:
         raise ErrorNegocio("El stock contado no puede ser negativo")
 
-    producto = _producto(db, usuario_id, producto_id)
+    producto = _producto_con_stock(db, usuario_id, producto_id)
     stock_antes = producto.cantidad
     diferencia = stock_real - stock_antes
     if diferencia == 0:

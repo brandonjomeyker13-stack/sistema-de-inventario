@@ -78,6 +78,7 @@ def inventario_con_ultima_venta(db: Session, usuario_id: str) -> list[dict]:
             Producto.cantidad.label("stock"),
             Producto.precio.label("precio"),
             Producto.cuanto_costo.label("costo"),
+            Producto.controla_stock.label("controla_stock"),
             Producto.creado_en.label("creado_en"),
             func.max(Venta.fecha).label("ultima_venta"),
         )
@@ -89,7 +90,8 @@ def inventario_con_ultima_venta(db: Session, usuario_id: str) -> list[dict]:
         .filter(Producto.usuario_id == usuario_id, Producto.eliminado.is_(False))
         .group_by(
             Producto.id, Producto.nombre, Producto.cantidad,
-            Producto.precio, Producto.cuanto_costo, Producto.creado_en,
+            Producto.precio, Producto.cuanto_costo, Producto.controla_stock,
+            Producto.creado_en,
         )
         .all()
     )
@@ -101,6 +103,10 @@ def inventario_con_ultima_venta(db: Session, usuario_id: str) -> list[dict]:
             "stock": int(f.stock),
             "precio": float(f.precio),
             "costo": float(f.costo),
+            # Los servicios se devuelven igual, y es el servicio quien los
+            # descarta. Filtrarlos aquí dejaría este método sirviendo solo
+            # para una de las dos vistas que lo usan.
+            "controla_stock": bool(f.controla_stock),
             "creado_en": f.creado_en,
             "ultima_venta": f.ultima_venta,
         }

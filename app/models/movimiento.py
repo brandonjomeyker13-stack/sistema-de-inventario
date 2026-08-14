@@ -29,8 +29,17 @@ ENTRADA = "entrada"    # llegó mercancía del proveedor
 VENTA = "venta"        # salió por una venta
 MERMA = "merma"        # se dañó, venció o se rompió
 AJUSTE = "ajuste"      # conteo físico: el stock real no era el del sistema
+# La mercancía volvió porque se anuló la venta: el cliente la devolvió, o
+# el tendero registró mal y lo está corrigiendo.
+#
+# Es un tipo propio y no una ENTRADA a propósito. Una entrada es mercancía
+# que se COMPRÓ, y mezclarlas haría que el día que se anula una venta
+# grande parezca un día de reposición del proveedor. Con tipo propio, el
+# libro dice la verdad y las devoluciones se pueden contar aparte —
+# muchas devoluciones seguidas del mismo producto son una señal.
+DEVOLUCION = "devolucion"
 
-TIPOS = (ENTRADA, VENTA, MERMA, AJUSTE)
+TIPOS = (ENTRADA, VENTA, MERMA, AJUSTE, DEVOLUCION)
 
 
 class MovimientoInventario(Base):

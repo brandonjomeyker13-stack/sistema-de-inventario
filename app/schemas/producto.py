@@ -11,6 +11,14 @@ class ProductoCrear(BaseModel):
     codigo_barras: str | None = Field(default=None, max_length=64)
     categoria_id: str | None = None
 
+    # False = servicio: fotocopia, impresión, plastificado, anillado. No
+    # tiene existencias, así que no se descuenta al venderlo ni aparece en
+    # las alertas de "se está acabando".
+    #
+    # Por defecto True para no cambiar el comportamiento de lo que ya
+    # existe: quien no mande el campo sigue creando productos normales.
+    controla_stock: bool = True
+
     @field_validator("nombre")
     @classmethod
     def limpiar_nombre(cls, v: str) -> str:
@@ -48,3 +56,6 @@ class ProductoOut(BaseModel):
     cuanto_costo: float
     codigo_barras: str | None = None
     categoria_id: str | None = None
+    # El frontend lo usa para saber si pintar existencias o no: mostrar
+    # "quedan 0" junto a una fotocopia asusta sin motivo.
+    controla_stock: bool = True
