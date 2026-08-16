@@ -23,11 +23,12 @@ desde otra pestaña o desde el celular.
 """
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from app.core import limites
+from app.core import limites, plantilla
 from app.database.session import get_db
-from app.api.deps import exigir_suscripcion_activa
+from app.api.deps import exigir_suscripcion_activa, obtener_usuario_actual
 from app.models.usuario import Usuario
 from app.schemas.importacion import (
     PeticionImportar, ResumenImportacion, ResultadoImportacion,
@@ -35,6 +36,40 @@ from app.schemas.importacion import (
 from app.services import importacion_service
 
 router = APIRouter(prefix="/importacion", tags=["Importación"])
+
+# Content-type oficial de los .xlsx. Con uno equivocado, algunos navegadores
+# guardan el archivo como .zip o lo abren como texto.
+TIPO_EXCEL = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@router.get("/plantilla")
+def descargar_plantilla(
+    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+):
+    """Descarga el Excel para llenar con el inventario.
+
+    La genera el backend y no el frontend a propósito: los encabezados salen
+    de la MISMA clase con la que el importador lee el archivo, así que no
+    pueden desincronizarse. Ver app/core/plantilla.py.
+
+    Va con `obtener_usuario_actual` y no con `exigir_suscripcion_activa`:
+    una cuenta en solo lectura no puede importar todavía, pero sí tiene
+    sentido que prepare el archivo mientras resuelve el pago.
+
+    Trae dos hojas: "Productos" (solo los títulos, para llenar) e
+    "Instrucciones" (qué va en cada columna, con ejemplos). Los ejemplos van
+    en la segunda hoja a propósito — si estuvieran en la primera y el
+    tendero olvidara borrarlos, se importarían como productos reales.
+    """
+    return Response(
+        content=plantilla.generar(),
+        media_type=TIPO_EXCEL,
+        headers={
+            # `attachment` fuerza la descarga en vez de que el navegador
+            # intente mostrarlo.
+            "Content-Disposition": f'attachment; filename="{plantilla.NOMBRE_ARCHIVO}"',
+        },
+    )
 
 
 @router.post("/previsualizar", response_model=ResumenImportacion)

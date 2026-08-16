@@ -49,6 +49,16 @@ httpx~=0.28.1
 # en el propio entorno de Python para que no dependa del contenedor.
 tzdata~=2026.2
 
+# Genera el .xlsx de la plantilla de importación. Se genera en el backend y
+# no en el frontend para que los encabezados salgan de la misma clase con la
+# que el importador lee el archivo: así no pueden desincronizarse.
+#
+# Solo se usa para ESCRIBIR la plantilla. El archivo que sube el tendero lo
+# lee el frontend y llega como JSON, así que el servidor nunca parsea un
+# Excel — eso evita tener que manejar subidas y no arriesga la poca memoria
+# del plan gratuito de Render.
+openpyxl~=3.1.5
+
 # Pruebas. Se instalan también en Render (van en el mismo archivo) porque
 # separarlas en un requirements-dev.txt añade un paso que se olvida; el
 # peso extra es despreciable y así `pytest` funciona en cualquier máquina
