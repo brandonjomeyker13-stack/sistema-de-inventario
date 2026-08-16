@@ -49,6 +49,19 @@ class Producto(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
     nombre = Column(String(255), nullable=False)
+
+    # El nombre en su forma canónica —minúsculas, sin tildes, espacios
+    # colapsados— para comparar y detectar duplicados. Ver app/core/texto.py.
+    #
+    # Existe como columna y no se calcula al vuelo por dos razones: se puede
+    # indexar, y la comparación deja de depender del motor de base de datos.
+    # El `ILIKE` que se usaba antes trataba 'CAFÉ' y 'Café' como iguales en
+    # PostgreSQL y como distintos en SQLite, así que las pruebas y
+    # producción no se comportaban igual.
+    #
+    # `nombre` sigue guardando lo que escribió el tendero, con sus tildes y
+    # mayúsculas: es lo que se muestra en pantalla.
+    nombre_clave = Column(String(255), nullable=True, index=True)
     # EAN-13 y similares. Nullable a propósito: la mayoría de productos de
     # una tienda de barrio (el arroz a granel, los huevos sueltos) no
     # tienen código, y obligar a inventárselo sería peor que no tenerlo.

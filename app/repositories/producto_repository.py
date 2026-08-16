@@ -9,6 +9,7 @@ otro, sin importar qué producto_id le manden en la URL.
 from sqlalchemy.orm import Session
 
 from app.core.codigos import normalizar
+from app.core.texto import clave_nombre
 from app.models.producto import Producto
 
 
@@ -62,12 +63,18 @@ def obtener_por_id(db: Session, usuario_id: str, producto_id: str) -> Producto |
 
 
 def obtener_por_nombre(db: Session, usuario_id: str, nombre: str) -> Producto | None:
+    """Busca por nombre ignorando mayúsculas, tildes y espacios de sobra.
+
+    Se compara contra `nombre_clave` y no con ILIKE: ILIKE se comporta
+    distinto en PostgreSQL y en SQLite con las letras acentuadas, así que
+    las pruebas y producción no coincidían.
+    """
     return (
         db.query(Producto)
         .filter(
             Producto.usuario_id == usuario_id,
             Producto.eliminado.is_(False),
-            Producto.nombre.ilike(nombre.strip()),
+            Producto.nombre_clave == clave_nombre(nombre),
         )
         .first()
     )
@@ -148,10 +155,16 @@ def existe_codigo_barras(db: Session, usuario_id: str, codigo: str, excluir_id: 
 
 
 def existe_nombre(db: Session, usuario_id: str, nombre: str, excluir_id: str | None = None) -> bool:
+    """Si ya hay un producto con ese nombre, ignorando mayúsculas y tildes.
+
+    "Café", "cafe" y "CAFÉ" son el mismo producto: un tendero que escribe el
+    nombre sin tilde no está creando otro, y tratarlos como distintos le
+    parte el stock en dos sin que entienda por qué.
+    """
     query = db.query(Producto).filter(
         Producto.usuario_id == usuario_id,
         Producto.eliminado.is_(False),
-        Producto.nombre.ilike(nombre.strip()),
+        Producto.nombre_clave == clave_nombre(nombre),
     )
     if excluir_id:
         query = query.filter(Producto.id != excluir_id)
@@ -165,6 +178,7 @@ def crear(
 ) -> Producto:
     producto = Producto(
         usuario_id=usuario_id, nombre=nombre.strip(),
+        nombre_clave=clave_nombre(nombre),
         # Un servicio se guarda siempre en cero: su "cantidad" no
         # significa nada, y dejar ahí lo que viniera del formulario
         # pintaría en pantalla unas existencias que no existen.
@@ -190,6 +204,9 @@ def actualizar(
     controla_stock: bool | None = None,
 ) -> Producto:
     producto.nombre = nombre.strip()
+    # La clave se recalcula SIEMPRE con el nombre: si se quedara atrás, el
+    # producto dejaría de encontrarse por su nombre nuevo.
+    producto.nombre_clave = clave_nombre(nombre)
     if controla_stock is not None:
         producto.controla_stock = controla_stock
     producto.cantidad = cantidad if producto.controla_stock else 0
