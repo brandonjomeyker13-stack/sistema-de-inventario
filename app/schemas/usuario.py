@@ -47,6 +47,18 @@ class UsuarioActualizar(BaseModel):
     # de golpe. El frontend lo pide al registrarse y lo ofrece después.
     sector: str | None = None
 
+    @field_validator("nombre_negocio")
+    @classmethod
+    def limpiar_nombre(cls, v: str) -> str:
+        # Igual que en el registro: "   " pasa min_length=1 pero llega
+        # vacío a la base después del .strip() del repositorio, y ahí una
+        # restricción lo rechaza con un error 500. Es un 422 explicando el
+        # campo, no una caída del servidor.
+        limpio = " ".join(v.split())
+        if not limpio:
+            raise ValueError("El nombre del negocio no puede estar vacío")
+        return limpio
+
     @field_validator("sector")
     @classmethod
     def validar_sector(cls, v: str | None) -> str | None:

@@ -14,7 +14,10 @@ venta de las 11pm no se cuela en el reporte del día siguiente.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy import (
+    Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Index,
+    CheckConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from app.database.session import Base
@@ -22,6 +25,24 @@ from app.database.session import Base
 
 class Venta(Base):
     __tablename__ = "ventas"
+
+    # Igual que en productos: existían solo en la base de producción,
+    # puestas a mano. Se adoptan aquí para que una base nueva sea idéntica.
+    #
+    # NO hay restricción sobre `ganancia_total`. Producción tenía una que
+    # exigía `>= 0` y tumbaba con un error 500 cualquier venta con pérdida
+    # —liquidar algo por vencer, sacar mercancía dañada— que es un hecho
+    # real del negocio. La migración 0019 la quita.
+    #
+    # `precio_venta_total >= 0` sí se conserva: los ingresos de una venta
+    # nunca pueden ser negativos. Un cero sí (un regalo, una muestra).
+    __table_args__ = (
+        CheckConstraint("cantidad_vendida > 0", name="ventas_cantidad_vendida_check"),
+        CheckConstraint("precio_venta_total >= 0", name="ventas_precio_venta_total_check"),
+        CheckConstraint(
+            "length(trim(nombre_producto)) > 0", name="ventas_nombre_producto_check",
+        ),
+    )
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)

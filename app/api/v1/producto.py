@@ -75,10 +75,16 @@ def agregar(
     plastificado): se vende y deja ganancia como cualquier producto, pero
     no lleva existencias — no se descuenta al venderlo ni sale en las
     alertas de "se está acabando".
+
+    Si el precio queda por debajo del costo responde 400 explicando el
+    problema: es casi siempre el costo y el precio invertidos. Para
+    guardarlo de todas formas (una liquidación, mercancía dañada) hay que
+    reenviarlo con `permitir_perdida: true`.
     """
     return product_service.agregar(
         db, usuario_actual.id, datos.nombre, datos.cantidad, datos.precio, datos.cuanto_costo,
         datos.codigo_barras, datos.categoria_id, controla_stock=datos.controla_stock,
+        permitir_perdida=datos.permitir_perdida,
     )
 
 
@@ -92,7 +98,7 @@ def editar(
     return product_service.editar(
         db, usuario_actual.id, producto_id, datos.nombre, datos.cantidad, datos.precio,
         datos.cuanto_costo, datos.codigo_barras, datos.categoria_id,
-        controla_stock=datos.controla_stock,
+        controla_stock=datos.controla_stock, permitir_perdida=datos.permitir_perdida,
     )
 
 

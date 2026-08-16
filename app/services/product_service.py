@@ -26,6 +26,37 @@ def buscar_por_codigo_barras(db: Session, usuario_id: str, codigo: str):
     return producto_repository.obtener_por_codigo_barras(db, usuario_id, codigo)
 
 
+def _validar_precio(nombre: str, precio: float, costo: float, permitir_perdida: bool):
+    """Avisa cuando el producto se vendería por menos de lo que cuesta.
+
+    Es el error de dedo más común al dar de alta un producto: escribir el
+    costo en la casilla del precio y al revés. Y hasta ahora no lo veía
+    nadie — el producto se guardaba tranquilo y la venta reventaba DESPUÉS
+    con un error 500 que no señalaba al producto culpable.
+
+    Se valida aquí, en el alta, y no al vender, por una razón: aquí la
+    persona tiene los dos números delante y puede corregirlos. Al cobrar,
+    con un cliente esperando, ya no.
+
+    NO se prohíbe del todo: vender por debajo del costo es un hecho real
+    —liquidar algo por vencer, sacar mercancía dañada, una promoción
+    gancho— y el sistema tiene que poder registrarlo. Se exige que sea
+    EXPLÍCITO, con el mismo criterio que el asistente: se propone, y el
+    tendero confirma.
+    """
+    if permitir_perdida or precio >= costo:
+        return
+
+    perdida = costo - precio
+    raise ErrorNegocio(
+        f"'{nombre.strip()}' se vendería a ${precio:,.0f} pero te cuesta ${costo:,.0f}: "
+        f"perderías ${perdida:,.0f} en cada unidad. "
+        "¿Escribiste el costo en la casilla del precio? Si de verdad quieres "
+        "venderlo con pérdida (una liquidación, por ejemplo), vuelve a guardarlo "
+        "marcando que la pérdida es a propósito."
+    )
+
+
 def _validar_categoria(db: Session, usuario_id: str, categoria_id: str | None):
     """Que la categoría exista y sea de este negocio.
 
@@ -39,8 +70,9 @@ def _validar_categoria(db: Session, usuario_id: str, categoria_id: str | None):
 def agregar(
     db: Session, usuario_id: str, nombre: str, cantidad: int, precio: float, costo: float,
     codigo_barras: str | None = None, categoria_id: str | None = None,
-    controla_stock: bool = True,
+    controla_stock: bool = True, permitir_perdida: bool = False,
 ):
+    _validar_precio(nombre, precio, costo, permitir_perdida)
     if producto_repository.existe_nombre(db, usuario_id, nombre):
         raise ErrorNegocio(f"Ya existe un producto llamado '{nombre.strip()}'")
     if codigo_barras and producto_repository.existe_codigo_barras(db, usuario_id, codigo_barras):
@@ -58,11 +90,12 @@ def agregar(
 def editar(
     db: Session, usuario_id: str, producto_id: str, nombre: str, cantidad: int, precio: float,
     costo: float, codigo_barras: str | None = None, categoria_id: str | None = None,
-    controla_stock: bool | None = None,
+    controla_stock: bool | None = None, permitir_perdida: bool = False,
 ):
     producto = producto_repository.obtener_por_id(db, usuario_id, producto_id)
     if not producto:
         raise NoEncontrado("Producto no encontrado")
+    _validar_precio(nombre, precio, costo, permitir_perdida)
     if producto_repository.existe_nombre(db, usuario_id, nombre, excluir_id=producto_id):
         raise ErrorNegocio(f"Ya existe otro producto llamado '{nombre.strip()}'")
     if codigo_barras and producto_repository.existe_codigo_barras(

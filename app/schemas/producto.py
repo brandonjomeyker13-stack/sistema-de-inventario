@@ -19,6 +19,18 @@ class ProductoCrear(BaseModel):
     # existe: quien no mande el campo sigue creando productos normales.
     controla_stock: bool = True
 
+    # Confirmación de que el precio por debajo del costo es a propósito.
+    #
+    # Sin esto, guardar un producto con el precio y el costo invertidos
+    # —el error de dedo más común al dar de alta— pasaba desapercibido y
+    # reventaba después al venderlo, con un 500 que no señalaba al
+    # producto culpable.
+    #
+    # No se guarda en la base: es una confirmación de este envío, no una
+    # propiedad del producto. Si mañana se corrige el precio, la
+    # confirmación no debe seguir viva.
+    permitir_perdida: bool = False
+
     @field_validator("nombre")
     @classmethod
     def limpiar_nombre(cls, v: str) -> str:

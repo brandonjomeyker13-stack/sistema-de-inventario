@@ -15,13 +15,36 @@ el nombre de un producto que ya había borrado.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy import (
+    Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Index,
+    CheckConstraint,
+)
 
 from app.database.session import Base
 
 
 class Producto(Base):
     __tablename__ = "productos"
+
+    # Estas restricciones EXISTÍAN solo en la base de producción, añadidas
+    # a mano en el editor de Supabase. Se declaran aquí para que una base
+    # creada desde cero (otro entorno, un restore, el Postgres local de
+    # otra persona) tenga exactamente las mismas reglas. Ver la migración
+    # 0020, que reconcilia la base que ya existe.
+    #
+    # Son la última barrera, no la única: la validación de verdad está en
+    # los schemas y en los servicios, donde se puede explicar el problema.
+    # Estas solo garantizan que ni un error de programación futuro pueda
+    # dejar un dato imposible guardado.
+    #
+    # Se usa length(trim(...)) y no char_length(...) porque length existe
+    # tanto en PostgreSQL como en SQLite, y las pruebas corren en SQLite.
+    __table_args__ = (
+        CheckConstraint("cantidad >= 0", name="productos_cantidad_check"),
+        CheckConstraint("precio >= 0", name="productos_precio_check"),
+        CheckConstraint("cuanto_costo >= 0", name="productos_cuanto_costo_check"),
+        CheckConstraint("length(trim(nombre)) > 0", name="productos_nombre_check"),
+    )
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)

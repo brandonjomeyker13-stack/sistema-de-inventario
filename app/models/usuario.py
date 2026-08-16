@@ -10,13 +10,27 @@ pueden ver ni tocar los datos del otro.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy import Column, String, Boolean, DateTime, CheckConstraint
 
 from app.database.session import Base
 
 
 class Usuario(Base):
     __tablename__ = "usuarios"
+
+    # Existía solo en la base de producción, puesta a mano. Y descubrió un
+    # fallo real: el schema pedía `min_length=1`, que "   " cumple, pero el
+    # repositorio le hace .strip() antes de guardar y llegaba vacío. En
+    # producción eso era un error 500 al registrarse — una caída del
+    # servidor por un campo rellenado con la barra espaciadora.
+    #
+    # El arreglo de verdad está en los schemas (auth.py y usuario.py), que
+    # ahora devuelven un 422 explicando el campo. Esto es la última red.
+    __table_args__ = (
+        CheckConstraint(
+            "length(trim(nombre_negocio)) > 0", name="usuarios_nombre_negocio_check",
+        ),
+    )
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String(255), unique=True, nullable=False, index=True)
