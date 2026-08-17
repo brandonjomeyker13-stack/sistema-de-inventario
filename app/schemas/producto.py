@@ -19,6 +19,12 @@ class ProductoCrear(BaseModel):
     # existe: quien no mande el campo sigue creando productos normales.
     controla_stock: bool = True
 
+    # Cuántas unidades tienen que quedar para que avise "hay que comprar".
+    # None = usa el valor por defecto del negocio. Va por producto porque un
+    # solo número global no sirve: el arroz avisa con veinte y un cuaderno
+    # con dos.
+    stock_minimo: int | None = Field(default=None, ge=0, le=100_000)
+
     # Confirmación de que el precio por debajo del costo es a propósito.
     #
     # Sin esto, guardar un producto con el precio y el costo invertidos
@@ -71,3 +77,5 @@ class ProductoOut(BaseModel):
     # El frontend lo usa para saber si pintar existencias o no: mostrar
     # "quedan 0" junto a una fotocopia asusta sin motivo.
     controla_stock: bool = True
+    # None = hereda el umbral del negocio.
+    stock_minimo: int | None = None

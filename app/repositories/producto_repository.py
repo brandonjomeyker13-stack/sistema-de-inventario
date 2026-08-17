@@ -14,7 +14,7 @@ from app.models.producto import Producto
 
 
 def _query_listado(db: Session, usuario_id: str, q: str | None = None,
-                   categoria_id: str | None = None):
+                   categoria_id: str | None = None, sin_codigo: bool = False):
     query = db.query(Producto).filter(
         Producto.usuario_id == usuario_id, Producto.eliminado.is_(False)
     )
@@ -27,12 +27,17 @@ def _query_listado(db: Session, usuario_id: str, q: str | None = None,
         )
     if categoria_id:
         query = query.filter(Producto.categoria_id == categoria_id)
+    if sin_codigo:
+        # Los que faltan por escanear. Después de importar la plantilla
+        # son TODOS, y esta es la lista de trabajo del tendero: pasa el
+        # lector por cada uno y deja de tener que buscarlos por nombre.
+        query = query.filter(Producto.codigo_barras.is_(None))
     return query
 
 
 def listar(db: Session, usuario_id: str, q: str | None = None,
            categoria_id: str | None = None, limite: int | None = None,
-           offset: int = 0) -> list[Producto]:
+           offset: int = 0, sin_codigo: bool = False) -> list[Producto]:
     """El inventario, con búsqueda y paginación opcionales.
 
     `limite` es None por defecto a propósito: poner un tope por defecto
@@ -41,7 +46,7 @@ def listar(db: Session, usuario_id: str, q: str | None = None,
     preferible una respuesta grande a una respuesta incorrecta; quien
     quiera paginar, que lo pida.
     """
-    query = _query_listado(db, usuario_id, q, categoria_id).order_by(Producto.nombre)
+    query = _query_listado(db, usuario_id, q, categoria_id, sin_codigo).order_by(Producto.nombre)
     if offset:
         query = query.offset(offset)
     if limite is not None:
@@ -50,8 +55,8 @@ def listar(db: Session, usuario_id: str, q: str | None = None,
 
 
 def contar(db: Session, usuario_id: str, q: str | None = None,
-           categoria_id: str | None = None) -> int:
-    return _query_listado(db, usuario_id, q, categoria_id).count()
+           categoria_id: str | None = None, sin_codigo: bool = False) -> int:
+    return _query_listado(db, usuario_id, q, categoria_id, sin_codigo).count()
 
 
 def obtener_por_id(db: Session, usuario_id: str, producto_id: str) -> Producto | None:
@@ -174,7 +179,7 @@ def existe_nombre(db: Session, usuario_id: str, nombre: str, excluir_id: str | N
 def crear(
     db: Session, usuario_id: str, nombre: str, cantidad: int, precio: float, costo: float,
     codigo_barras: str | None = None, categoria_id: str | None = None,
-    controla_stock: bool = True,
+    controla_stock: bool = True, stock_minimo: int | None = None,
 ) -> Producto:
     producto = Producto(
         usuario_id=usuario_id, nombre=nombre.strip(),
@@ -191,6 +196,8 @@ def crear(
         # canónico venga de donde venga.
         codigo_barras=normalizar(codigo_barras),
         categoria_id=categoria_id,
+        # Un servicio no lleva existencias, así que tampoco umbral.
+        stock_minimo=stock_minimo if controla_stock else None,
     )
     db.add(producto)
     db.commit()
@@ -201,7 +208,7 @@ def crear(
 def actualizar(
     db: Session, producto: Producto, nombre: str, cantidad: int, precio: float, costo: float,
     codigo_barras: str | None = None, categoria_id: str | None = None,
-    controla_stock: bool | None = None,
+    controla_stock: bool | None = None, stock_minimo: int | None = None,
 ) -> Producto:
     producto.nombre = nombre.strip()
     # La clave se recalcula SIEMPRE con el nombre: si se quedara atrás, el
@@ -216,6 +223,7 @@ def actualizar(
     # dos productos "sin código" como duplicados y el segundo fallaría.
     producto.codigo_barras = normalizar(codigo_barras)
     producto.categoria_id = categoria_id
+    producto.stock_minimo = stock_minimo if producto.controla_stock else None
     db.commit()
     db.refresh(producto)
     return producto

@@ -38,6 +38,40 @@ class AlertaAgotarseOut(BaseModel):
     ya_agotado: bool
 
 
+class ProductoPorComprarOut(BaseModel):
+    producto_id: str
+    nombre: str
+    stock: int
+    # El umbral que se aplicó: el propio del producto, o el del negocio si
+    # no tenía uno. El frontend lo muestra para que el tendero entienda por
+    # qué está en la lista y pueda ajustarlo.
+    stock_minimo: int
+    vende_por_dia: float
+    # None cuando el producto no se ha vendido en la ventana: está bajo de
+    # existencias pero no hay prisa medible.
+    dias_restantes: float | None = None
+    # Frase corta y en español de por qué aparece. Se arma en el backend
+    # para que la pantalla y el asistente digan lo mismo.
+    motivo: str
+    ya_agotado: bool
+
+
+class ListaDeCompraOut(BaseModel):
+    """Lo que hay que pedirle al proveedor.
+
+    `texto` es la lista ya armada para pegar en WhatsApp. Se genera en el
+    backend a propósito: tiene dos consumidores —esta pantalla y el
+    asistente— y si cada uno la formateara por su cuenta, algún día no
+    coincidirían. La pantalla diría doce productos y el chat ocho, y el
+    tendero dejaría de confiar en los dos.
+    """
+
+    total: int
+    agotados: int
+    productos: list[ProductoPorComprarOut]
+    texto: str
+
+
 class DiaSemanaOut(BaseModel):
     dia: str
     promedio_vendido: float

@@ -71,6 +71,18 @@ class Producto(Base):
     precio = Column(Float, nullable=False, default=0)
     cuanto_costo = Column(Float, nullable=False, default=0)
 
+    # Cuántas unidades tienen que quedar para que avise "hay que comprar".
+    #
+    # NULL = usa el valor por defecto del negocio (usuarios.stock_minimo_defecto).
+    # Va por producto porque un solo número global no sirve: el arroz vende
+    # cincuenta a la semana y hay que pedirlo con veinte todavía en la
+    # estantería, mientras que un cuaderno específico avisa con dos. Con un
+    # único umbral, la alerta o suena siempre o no suena nunca — y una
+    # alerta que suena siempre se deja de mirar.
+    #
+    # No aplica a los servicios: una fotocopia no se acaba.
+    stock_minimo = Column(Integer, nullable=True)
+
     # False = es un SERVICIO: no tiene existencias que contar.
     #
     # Una papelería vende fotocopias, impresiones, plastificado, anillado.

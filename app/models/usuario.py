@@ -10,7 +10,7 @@ pueden ver ni tocar los datos del otro.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Boolean, DateTime, CheckConstraint
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, CheckConstraint
 
 from app.database.session import Base
 
@@ -78,3 +78,10 @@ class Usuario(Base):
     email_verificado = Column(Boolean, nullable=False, default=False)
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     cedula = Column(String(20), nullable=True)
+
+    # Umbral de stock bajo para los productos que no tienen uno propio.
+    #
+    # Arranca en 5 y no en NULL a propósito: así la lista de compra sirve
+    # desde el primer día, sin que nadie tenga que configurar nada. Una
+    # función que exige configuración previa no la usa nadie.
+    stock_minimo_defecto = Column(Integer, nullable=False, default=5)

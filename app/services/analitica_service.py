@@ -18,10 +18,16 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.core.fechas import FORMATO_FECHA, hoy_local, sumar_dias
-from app.repositories import analitica_repository
+from app.repositories import analitica_repository, usuario_repository
 
 # Un producto se considera parado si lleva este tiempo sin una sola venta.
 DIAS_SIN_MOVIMIENTO = 60
+
+# Red de seguridad para el umbral de stock bajo: se usa si la cuenta no
+# tiene valor (una fila anterior a la migración 0022, o un 0 guardado a
+# mano). Un umbral de cero haría que un producto solo apareciera en la
+# lista cuando YA se agotó, que es demasiado tarde para pedirlo.
+MINIMO_POR_DEFECTO = 5
 
 # Por debajo de esto se avisa de que el producto se está por acabar.
 DIAS_PARA_AGOTARSE = 7
@@ -148,6 +154,124 @@ def por_agotarse(db: Session, usuario_id: str, dias_historial: int = 30) -> list
 
     alertas.sort(key=lambda a: a["dias_restantes"])
     return alertas
+
+
+def que_comprar(db: Session, usuario_id: str, dias_historial: int = 30) -> dict:
+    """La lista de lo que hay que pedirle al proveedor.
+
+    Junta las DOS señales, porque cada una sola tiene un punto ciego:
+
+      · UMBRAL: quedan menos unidades que el mínimo. Funciona desde el
+        primer día, y es como piensa un tendero ("avísame cuando queden
+        menos de cinco"). Es la única que ve un producto sin historial de
+        ventas — uno nuevo, o uno que se vende poco, se agotaría en
+        silencio con solo la otra señal.
+
+      · RITMO: al paso al que se vende, se acaba esta semana. Ve venir el
+        problema antes de llegar al mínimo, que es justo lo que un umbral
+        fijo no puede hacer con un producto que de pronto se puso de moda.
+
+    Un producto entra si CUALQUIERA de las dos se cumple, y se dice cuál
+    para que el tendero entienda por qué está en la lista.
+
+    NO se sugiere cuánto comprar a propósito. Sería inventar: el tendero
+    compra por bulto, por caja de veinticuatro o por paca, según lo que le
+    venda su proveedor. Se le dan los datos —cuánto queda, cuánto vende al
+    día— y él decide, que es quien sabe.
+    """
+    usuario = usuario_repository.obtener_por_id(db, usuario_id)
+    minimo_negocio = (usuario.stock_minimo_defecto if usuario else None) or MINIMO_POR_DEFECTO
+
+    desde, hasta = _rango(dias_historial)
+    vendidos = analitica_repository.ventas_por_producto(db, usuario_id, desde, hasta)
+    ritmos = {v["producto_id"]: v["unidades"] / dias_historial
+              for v in vendidos if v["producto_id"]}
+
+    inventario = analitica_repository.inventario_con_ultima_venta(db, usuario_id)
+
+    lista = []
+    for p in inventario:
+        # Los servicios no se compran: no hay un proveedor de fotocopias.
+        if not p["controla_stock"]:
+            continue
+
+        minimo = p["stock_minimo"] if p["stock_minimo"] is not None else minimo_negocio
+        ritmo = ritmos.get(p["id"], 0)
+        dias_restantes = round(p["stock"] / ritmo, 1) if ritmo > 0 else None
+
+        bajo_el_minimo = p["stock"] <= minimo
+        se_acaba_pronto = dias_restantes is not None and dias_restantes <= DIAS_PARA_AGOTARSE
+        if not bajo_el_minimo and not se_acaba_pronto:
+            continue
+
+        if p["stock"] <= 0:
+            motivo = "se acabó"
+        elif bajo_el_minimo:
+            motivo = f"quedan {p['stock']} y tu mínimo es {minimo}"
+        else:
+            motivo = f"quedan {p['stock']}, para {dias_restantes} día(s) al ritmo de ahora"
+
+        lista.append({
+            "producto_id": p["id"],
+            "nombre": p["nombre"],
+            "stock": p["stock"],
+            "stock_minimo": minimo,
+            "vende_por_dia": round(ritmo, 2) if ritmo > 0 else 0.0,
+            "dias_restantes": dias_restantes,
+            "motivo": motivo,
+            # Lo que ya se agotó va primero y en rojo: cada hora que pasa
+            # es una venta que se va a la tienda de la esquina.
+            "ya_agotado": p["stock"] <= 0,
+        })
+
+    # Lo agotado arriba; después lo que menos días aguanta. Un producto sin
+    # ritmo conocido va al final: está bajo de stock pero no hay prisa
+    # medible.
+    lista.sort(key=lambda x: (
+        not x["ya_agotado"],
+        x["dias_restantes"] if x["dias_restantes"] is not None else 9999,
+        x["nombre"],
+    ))
+
+    return {
+        "total": len(lista),
+        "agotados": sum(1 for x in lista if x["ya_agotado"]),
+        "productos": lista,
+        "texto": _texto_del_pedido(usuario.nombre_negocio if usuario else "", lista),
+    }
+
+
+def _texto_del_pedido(nombre_negocio: str, lista: list[dict]) -> str:
+    """La lista lista para pegar en WhatsApp.
+
+    Se arma AQUÍ y no en el frontend porque tiene dos consumidores: la
+    pantalla del inventario y el asistente. Si cada uno la formateara por su
+    cuenta, algún día no coincidirían —la pantalla diría doce productos y el
+    chat ocho— y el tendero dejaría de confiar en los dos.
+
+    Sin negritas ni asteriscos: WhatsApp los interpreta, pero un SMS, un
+    correo o una nota de voz transcrita no, y ahí quedarían como basura.
+    """
+    if not lista:
+        return "No hay nada por comprar: todo está por encima de su mínimo."
+
+    lineas = [f"Pedido - {nombre_negocio}".strip(" -"), hoy_local(), ""]
+
+    agotados = [x for x in lista if x["ya_agotado"]]
+    resto = [x for x in lista if not x["ya_agotado"]]
+
+    if agotados:
+        lineas.append("SE ACABARON:")
+        lineas += [f"- {x['nombre']}" for x in agotados]
+        if resto:
+            lineas.append("")
+
+    if resto:
+        if agotados:
+            lineas.append("SE ESTAN ACABANDO:")
+        lineas += [f"- {x['nombre']} (quedan {x['stock']})" for x in resto]
+
+    return "\n".join(lineas)
 
 
 def dias_fuertes(db: Session, usuario_id: str, dias: int = 90) -> list[dict]:

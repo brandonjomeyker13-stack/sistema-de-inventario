@@ -15,7 +15,7 @@ from app.api.deps import obtener_usuario_actual, exigir_suscripcion_activa
 from app.models.usuario import Usuario
 from app.schemas.analitica import (
     ResumenAnaliticaOut, ProductoRankingOut, CapitalParadoOut,
-    AlertaAgotarseOut, DiaSemanaOut,
+    AlertaAgotarseOut, DiaSemanaOut, ListaDeCompraOut,
 )
 from app.services import analitica_service
 
@@ -72,6 +72,33 @@ def por_agotarse(
 ):
     """Qué se acaba pronto según el ritmo de venta reciente."""
     return analitica_service.por_agotarse(db, usuario_actual.id, dias_historial)
+
+
+@router.get("/que-comprar", response_model=ListaDeCompraOut)
+def que_comprar(
+    dias_historial: int = Query(default=30, ge=7, le=365),
+    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """La lista de lo que hay que pedirle al proveedor.
+
+    Junta las dos señales, porque cada una sola tiene un punto ciego:
+
+      · Le quedan menos unidades que su mínimo. Sirve desde el primer día y
+        es la única que ve un producto sin historial de ventas — uno nuevo
+        se agotaría en silencio con solo la otra señal.
+      · Al ritmo al que se vende, se acaba esta semana. Ve venir el
+        problema antes de llegar al mínimo.
+
+    `texto` viene lista para pegar en WhatsApp y mandársela al proveedor.
+    Es el mismo texto que devuelve el asistente si se le pregunta, para que
+    la pantalla y el chat no puedan contradecirse.
+
+    No sugiere CUÁNTO comprar a propósito: el tendero pide por bulto, por
+    caja de veinticuatro o por paca según lo que le venda su proveedor. Se
+    le dan los datos y decide él, que es quien sabe.
+    """
+    return analitica_service.que_comprar(db, usuario_actual.id, dias_historial)
 
 
 @router.get("/dias-fuertes", response_model=list[DiaSemanaOut])

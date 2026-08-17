@@ -7,13 +7,15 @@ from app.repositories import producto_repository, categoria_repository, movimien
 
 
 def listar(db: Session, usuario_id: str, q: str | None = None,
-           categoria_id: str | None = None, limite: int | None = None, offset: int = 0):
-    return producto_repository.listar(db, usuario_id, q, categoria_id, limite, offset)
+           categoria_id: str | None = None, limite: int | None = None, offset: int = 0,
+           sin_codigo: bool = False):
+    return producto_repository.listar(db, usuario_id, q, categoria_id, limite, offset,
+                                      sin_codigo)
 
 
 def contar(db: Session, usuario_id: str, q: str | None = None,
-           categoria_id: str | None = None) -> int:
-    return producto_repository.contar(db, usuario_id, q, categoria_id)
+           categoria_id: str | None = None, sin_codigo: bool = False) -> int:
+    return producto_repository.contar(db, usuario_id, q, categoria_id, sin_codigo)
 
 
 def buscar_por_codigo_barras(db: Session, usuario_id: str, codigo: str):
@@ -71,6 +73,7 @@ def agregar(
     db: Session, usuario_id: str, nombre: str, cantidad: int, precio: float, costo: float,
     codigo_barras: str | None = None, categoria_id: str | None = None,
     controla_stock: bool = True, permitir_perdida: bool = False,
+    stock_minimo: int | None = None,
 ):
     _validar_precio(nombre, precio, costo, permitir_perdida)
     if producto_repository.existe_nombre(db, usuario_id, nombre):
@@ -83,7 +86,7 @@ def agregar(
         # Un servicio nace en cero y se queda ahí. Guardar la cantidad que
         # venga en el formulario dejaría un número que no significa nada y
         # que aparecería en pantalla como si fueran existencias reales.
-        controla_stock=controla_stock,
+        controla_stock=controla_stock, stock_minimo=stock_minimo,
     )
 
 
@@ -91,6 +94,7 @@ def editar(
     db: Session, usuario_id: str, producto_id: str, nombre: str, cantidad: int, precio: float,
     costo: float, codigo_barras: str | None = None, categoria_id: str | None = None,
     controla_stock: bool | None = None, permitir_perdida: bool = False,
+    stock_minimo: int | None = None,
 ):
     producto = producto_repository.obtener_por_id(db, usuario_id, producto_id)
     if not producto:
@@ -127,7 +131,7 @@ def editar(
 
     return producto_repository.actualizar(
         db, producto, nombre, cantidad, precio, costo, codigo_barras, categoria_id,
-        controla_stock=lleva_stock,
+        controla_stock=lleva_stock, stock_minimo=stock_minimo,
     )
 
 

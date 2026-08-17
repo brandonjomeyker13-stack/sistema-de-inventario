@@ -22,6 +22,7 @@ def listar(
     respuesta: Response,
     q: str | None = Query(default=None, description="Busca en nombre y código de barras"),
     categoria_id: str | None = None,
+    sin_codigo: bool = Query(default=False, description="Solo los que no tienen código de barras"),
     limite: int | None = Query(default=None, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     usuario_actual: Usuario = Depends(obtener_usuario_actual),
@@ -34,12 +35,19 @@ def listar(
     500 productos haría que la caja mostrara un catálogo incompleto sin
     que nadie lo note. Es peor una respuesta incorrecta que una grande.
 
+    `sin_codigo=true` deja solo los que faltan por escanear. Es la lista de
+    trabajo después de importar la plantilla, donde ningún producto trae
+    código: el tendero pasa el lector por cada uno y deja de tener que
+    buscarlos por nombre. El asistente sabe cuántos son y manda aquí.
+
     El total (sin paginar) va en `X-Total-Count`.
     """
     respuesta.headers["X-Total-Count"] = str(
-        product_service.contar(db, usuario_actual.id, q, categoria_id)
+        product_service.contar(db, usuario_actual.id, q, categoria_id, sin_codigo)
     )
-    return product_service.listar(db, usuario_actual.id, q, categoria_id, limite, offset)
+    return product_service.listar(
+        db, usuario_actual.id, q, categoria_id, limite, offset, sin_codigo,
+    )
 
 
 @router.get("/codigo/{codigo_barras}", response_model=ProductoOut | None)
@@ -84,7 +92,7 @@ def agregar(
     return product_service.agregar(
         db, usuario_actual.id, datos.nombre, datos.cantidad, datos.precio, datos.cuanto_costo,
         datos.codigo_barras, datos.categoria_id, controla_stock=datos.controla_stock,
-        permitir_perdida=datos.permitir_perdida,
+        permitir_perdida=datos.permitir_perdida, stock_minimo=datos.stock_minimo,
     )
 
 
@@ -99,6 +107,7 @@ def editar(
         db, usuario_actual.id, producto_id, datos.nombre, datos.cantidad, datos.precio,
         datos.cuanto_costo, datos.codigo_barras, datos.categoria_id,
         controla_stock=datos.controla_stock, permitir_perdida=datos.permitir_perdida,
+        stock_minimo=datos.stock_minimo,
     )
 
 
