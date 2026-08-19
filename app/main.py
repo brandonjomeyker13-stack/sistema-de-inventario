@@ -2,8 +2,9 @@
 app/main.py — Punto de entrada de la API.
 
 Este archivo NO tiene lógica de negocio. Solo: arma la app de FastAPI,
-configura CORS (para que Lovable pueda llamarla desde otro dominio),
-traduce las excepciones de negocio a códigos HTTP, y monta las rutas.
+configura CORS (para que el frontend de stocktraking.com pueda llamarla
+desde otro dominio), traduce las excepciones de negocio a códigos HTTP, y
+monta las rutas.
 """
 
 from fastapi import FastAPI, Request

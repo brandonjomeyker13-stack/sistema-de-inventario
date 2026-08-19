@@ -36,8 +36,17 @@ services:
         value: "30"
       - key: REFRESH_TOKEN_EXPIRE_DAYS
         value: "30"
+      # Los orígenes del frontend no son un secreto, así que van aquí y
+      # no en el panel: con `sync: false` bastaba con que nadie hubiera
+      # rellenado la variable en Render para que el navegador bloqueara
+      # todas las llamadas desde stocktraking.com — y el frontend solo
+      # vería un error de CORS, que no dice qué falta configurar.
+      #
+      # Con esquema y sin barra final: es como manda el navegador la
+      # cabecera `Origin`, y así se compara. Se incluye el subdominio de
+      # Lovable porque sigue siendo la vista previa del frontend.
       - key: CORS_ORIGINS
-        sync: false
+        value: https://stocktraking.com,https://www.stocktraking.com,https://stocktrack-ai.lovable.app
       # Todas estas son secretas: se ponen en el dashboard de Render, no
       # en este archivo. Ver .env.ejemplo para saber de dónde sale cada una.
       - key: GOOGLE_CLIENT_ID

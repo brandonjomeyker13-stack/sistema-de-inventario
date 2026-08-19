@@ -28,10 +28,28 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
-    # Dominios permitidos para CORS, separados por coma. Debe incluir el
-    # dominio real donde Lovable publique el frontend (y localhost para
-    # cuando tu compañero prueba en su máquina).
-    CORS_ORIGINS: str = "stocktrack-ai.lovable.app"
+    # Orígenes permitidos para CORS, separados por coma.
+    #
+    # El navegador manda la cabecera `Origin` con el esquema incluido
+    # ("https://stocktraking.com") y Starlette la compara TAL CUAL contra
+    # esta lista. Por eso el valor por defecto de antes
+    # ("stocktrack-ai.lovable.app", sin esquema) no autorizaba a nadie:
+    # no coincidía con ninguna cabecera real, y el frontend solo veía un
+    # error de CORS que no dice qué falta. `cors_origins_list` completa
+    # el esquema si en Render alguien escribe solo el dominio.
+    #
+    # Van los dos nombres del dominio propio: si el DNS sirve `www` sin
+    # redirigir al dominio raíz, para el navegador son dos orígenes
+    # distintos y hay que autorizar ambos. Se conserva el subdominio de
+    # Lovable porque sigue siendo la vista previa mientras se edita el
+    # frontend, y localhost para desarrollo.
+    CORS_ORIGINS: str = (
+        "https://stocktraking.com,"
+        "https://www.stocktraking.com,"
+        "https://stocktrack-ai.lovable.app,"
+        "http://localhost:3000,"
+        "http://localhost:5173"
+    )
 
     # Client ID de Google (Google Cloud Console -> APIs & Services ->
     # Credentials -> OAuth 2.0 Client ID -> "Web application"). El mismo
@@ -61,7 +79,11 @@ class Settings(BaseSettings):
 
     # Dónde vive el frontend. Los enlaces de los correos apuntan aquí, no
     # a la API: el usuario debe aterrizar en una pantalla, no en un JSON.
-    URL_FRONTEND: str = "https://stocktrack-ai.lovable.app"
+    #
+    # Es el dominio propio, no el de Lovable: un correo de verificación
+    # tarda días en abrirse, y para entonces el subdominio de la vista
+    # previa puede haber cambiado. El dominio propio no.
+    URL_FRONTEND: str = "https://stocktraking.com"
 
     # Asistente de IA. La clave es de Groq (console.groq.com). Queda
     # opcional: sin ella la API arranca igual y solo el endpoint del
@@ -115,7 +137,27 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        """Los orígenes tal como los escribe el navegador.
+
+        Normaliza dos descuidos que no dan ningún error al arrancar y
+        solo se notan como un CORS bloqueado en producción: el dominio
+        sin esquema ("stocktraking.com") y la barra final
+        ("https://stocktraking.com/"). La cabecera `Origin` siempre trae
+        esquema y nunca trae barra final.
+
+        A lo que le falta esquema se le pone `https://`, así que para
+        desarrollo hay que escribir "http://localhost:3000" completo.
+        """
+        origenes: list[str] = []
+        for crudo in self.CORS_ORIGINS.split(","):
+            origen = crudo.strip().rstrip("/")
+            if not origen:
+                continue
+            if "://" not in origen:
+                origen = f"https://{origen}"
+            if origen not in origenes:
+                origenes.append(origen)
+        return origenes
 
 
 settings = Settings()
