@@ -3,13 +3,27 @@ from pydantic import BaseModel
 
 class ProductoRankingOut(BaseModel):
     producto_id: str | None = None
+    # El nombre con el que se VENDIÓ. Es una copia guardada en cada venta, así
+    # que puede no ser el nombre actual del producto.
     nombre: str
+    # El nombre de ahora, si el producto sigue existiendo. None si se borró.
+    nombre_actual: str | None = None
     unidades: int
     ingresos: float
     ganancia: float
     # En cuántas ventas distintas apareció: distingue el producto de
     # tráfico diario del que alguien se llevó de golpe una sola vez.
     veces: int
+
+    # Si TODAVÍA se puede vender. False cuando el producto se borró después
+    # de esas ventas.
+    #
+    # Existe por un fallo real: el frontend pintaba botones de "más vendidos"
+    # con este ranking, y al tocar uno de un producto borrado el backend
+    # respondía 404 y parecía que la venta estaba rota. Con esta bandera se
+    # sabe cuáles son tocables sin traerse el inventario entero para
+    # cruzarlo.
+    disponible: bool = True
 
 
 class ProductoParadoOut(BaseModel):

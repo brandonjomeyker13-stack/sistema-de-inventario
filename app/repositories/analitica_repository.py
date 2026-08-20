@@ -28,6 +28,22 @@ def ventas_por_producto(db: Session, usuario_id: str, desde: str, hasta: str) ->
     Se agrupa también por nombre porque `producto_id` puede ser NULL
     (el producto se borró después de la venta) y esas líneas no deben
     fundirse todas en un mismo grupo sin nombre.
+
+    `disponible` dice si ese producto TODAVÍA se puede vender. Es necesario
+    porque el ranking sale del historial de ventas, no del inventario: un
+    producto borrado —o renombrado y recreado— sigue apareciendo aquí con su
+    producto_id viejo.
+
+    Y eso causó un fallo real: el frontend usaba el ranking para pintar
+    botones de "más vendidos", y al tocar uno de un producto ya borrado el
+    backend respondía 404 "Producto no encontrado". Desde fuera parecía que
+    la venta estaba rota.
+
+    NO se excluyen del ranking los borrados, se MARCAN. El ranking es
+    análisis histórico: si se ocultara lo que se vendió y luego se borró, los
+    totales de ingresos y ganancia mentirían. Quien lo consuma decide —
+    pintar el botón deshabilitado, u omitirlo— pero sin tener que traerse el
+    inventario entero para averiguarlo.
     """
     filas = (
         db.query(
@@ -37,22 +53,35 @@ def ventas_por_producto(db: Session, usuario_id: str, desde: str, hasta: str) ->
             func.coalesce(func.sum(VentaItem.precio_total), 0).label("ingresos"),
             func.coalesce(func.sum(VentaItem.ganancia_total), 0).label("ganancia"),
             func.count(func.distinct(VentaItem.venta_id)).label("veces"),
+            # El nombre ACTUAL del producto, si sigue vivo. NULL si se borró.
+            # LEFT JOIN y no INNER: con un INNER, las ventas de un producto
+            # borrado desaparecerían del análisis y los totales cambiarían.
+            Producto.nombre.label("nombre_actual"),
         )
         .join(Venta, Venta.id == VentaItem.venta_id)
+        .outerjoin(
+            Producto,
+            (Producto.id == VentaItem.producto_id) & (Producto.eliminado.is_(False)),
+        )
         .filter(
             Venta.usuario_id == usuario_id,
             Venta.eliminado.is_(False),
             Venta.fecha >= desde,
             Venta.fecha <= hasta,
         )
-        .group_by(VentaItem.producto_id, VentaItem.nombre_producto)
+        .group_by(VentaItem.producto_id, VentaItem.nombre_producto, Producto.nombre)
         .all()
     )
 
     return [
         {
             "producto_id": f.producto_id,
+            # El nombre del historial: es lo que realmente se vendió y con
+            # qué nombre se cobró.
             "nombre": f.nombre,
+            # El de ahora, cuando cambió. Permite mostrar "Cuadernos 100
+            # hojas" (como se vendió) sabiendo que hoy se llama distinto.
+            "nombre_actual": f.nombre_actual,
             "unidades": int(f.unidades),
             "ingresos": round(float(f.ingresos), 2),
             "ganancia": round(float(f.ganancia), 2),
@@ -60,6 +89,8 @@ def ventas_por_producto(db: Session, usuario_id: str, desde: str, hasta: str) ->
             # muchas ventas es un producto de tráfico, aunque venda pocas
             # unidades; no es lo mismo que uno que se llevó alguien de golpe.
             "veces": int(f.veces),
+            # Se puede volver a vender: existe y no está borrado.
+            "disponible": f.nombre_actual is not None,
         }
         for f in filas
     ]

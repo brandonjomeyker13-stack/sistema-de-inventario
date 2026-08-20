@@ -90,9 +90,12 @@ class Settings(BaseSettings):
     #
     # OJO con este número: el reloj arranca al registrarse, pero antes de
     # poder usar la aplicación hay que cargar el inventario, que en una
-    # tienda son cientos de productos. Con 4 días es fácil que la prueba
-    # se acabe antes de que el tendero haya llegado a probar nada.
-    DIAS_DE_PRUEBA: int = 4
+    # tienda son cientos de productos. Con pocos días es fácil que la
+    # prueba se acabe antes de que el tendero haya llegado a probar nada.
+    #
+    # Pasó de 4 a 7 días. Las cuentas que ya existían se ajustaron en la
+    # migración 0023 para que tengan el mismo trato.
+    DIAS_DE_PRUEBA: int = 7
 
     # Zona horaria del negocio. Determina qué se considera "hoy" al
     # registrar una venta y al cortar los reportes diarios. NO se puede

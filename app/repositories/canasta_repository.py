@@ -76,8 +76,15 @@ def obtener_por_id(db: Session, canasta_id: str) -> Canasta | None:
     return db.query(Canasta).filter(Canasta.id == canasta_id).first()
 
 
-def obtener_por_token(db: Session, token: str) -> Canasta | None:
-    return db.query(Canasta).filter(Canasta.token_celular == token).first()
+# Se eliminó `obtener_por_token`. No lo usaba nadie, y era un riesgo
+# dormido: buscaba una canasta por su token SIN pedir el negocio, así que la
+# primera persona que lo usara por comodidad se saltaría el control de
+# acceso de canasta_service._autorizar sin darse cuenta.
+#
+# El emparejamiento del celular ya funciona al contrario, y es el orden
+# correcto: se busca la canasta por su id, y DESPUÉS se comprueba que el
+# token coincida con la suya (con compare_digest). Así el token nunca
+# selecciona la fila, solo autoriza el acceso a una fila ya elegida.
 
 
 def esta_vigente(canasta: Canasta) -> bool:
