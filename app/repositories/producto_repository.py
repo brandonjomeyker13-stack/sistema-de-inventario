@@ -229,6 +229,20 @@ def actualizar(
     return producto
 
 
+def asignar_codigo_barras(db: Session, producto: Producto,
+                          codigo_barras: str | None) -> Producto:
+    """Cambia SOLO el código de barras. No toca ningún otro campo.
+
+    Se normaliza igual que en todos lados: un UPC-A de 12 dígitos se guarda
+    como su EAN-13, para que el mismo producto leído por dos lectores
+    distintos siga siendo uno solo.
+    """
+    producto.codigo_barras = normalizar(codigo_barras)
+    db.commit()
+    db.refresh(producto)
+    return producto
+
+
 def eliminar(db: Session, producto: Producto) -> None:
     producto.eliminado = True
     db.commit()

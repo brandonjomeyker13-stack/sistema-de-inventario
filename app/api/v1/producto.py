@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.api.deps import obtener_usuario_actual, exigir_suscripcion_activa
 from app.models.usuario import Usuario
-from app.schemas.producto import ProductoCrear, ProductoActualizar, ProductoOut
+from app.schemas.producto import (
+    CodigoBarrasAsignar, ProductoCrear, ProductoActualizar, ProductoOut,
+)
 from app.services import product_service
 
 router = APIRouter(prefix="/productos", tags=["Productos"])
@@ -108,6 +110,37 @@ def editar(
         datos.cuanto_costo, datos.codigo_barras, datos.categoria_id,
         controla_stock=datos.controla_stock, permitir_perdida=datos.permitir_perdida,
         stock_minimo=datos.stock_minimo,
+    )
+
+
+@router.put("/{producto_id}/codigo-barras", response_model=ProductoOut)
+def asignar_codigo_barras(
+    producto_id: str,
+    datos: CodigoBarrasAsignar,
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
+    db: Session = Depends(get_db),
+):
+    """Le pega un código de barras a un producto que ya existe.
+
+    Es la pieza que conecta la importación con el lector. La plantilla crea
+    los productos SIN código, así que después hay que caminar la estantería
+    con el celular, escanear cada producto y decir a cuál pertenece. Sin
+    esto, el celular como lector no sirve hasta que alguien teclee
+    trescientos códigos a mano.
+
+    Solo toca el código. A diferencia de PUT /productos/{id}, no hay que
+    reenviar nombre, cantidad ni precios — que desde el celular sería
+    imposible, y además arriesgaría pisar el stock desde una pantalla que
+    ni lo muestra.
+
+    Con `codigo_barras: null` se le quita el código, para cuando se pegó al
+    producto equivocado.
+
+    Si el código ya es de otro producto responde 400 diciendo DE CUÁL, que
+    es lo que permite corregirlo sin buscar entre trescientos.
+    """
+    return product_service.asignar_codigo_barras(
+        db, usuario_actual.id, producto_id, datos.codigo_barras,
     )
 
 

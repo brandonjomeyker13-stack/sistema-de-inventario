@@ -135,6 +135,46 @@ def editar(
     )
 
 
+def asignar_codigo_barras(db: Session, usuario_id: str, producto_id: str,
+                          codigo_barras: str | None):
+    """Le pega un código de barras a un producto que ya existe.
+
+    Es la pieza que conecta la importación con el lector, y sin ella la
+    cadena está rota: la plantilla crea los productos SIN código, y el
+    celular como lector no sirve hasta que cada producto tenga el suyo.
+
+    Existe aparte de `editar` por una razón práctica: `editar` exige el
+    producto completo —nombre, cantidad, precio, costo—, así que para pegar
+    un código habría que reenviarlo todo. Y eso, hecho desde el celular
+    mientras se camina la estantería, es tanto trabajo que nadie lo haría;
+    además, reenviar la cantidad desde una pantalla que no la muestra es
+    una forma cómoda de pisar el stock sin querer.
+
+    Aquí solo se toca el código. Nada más se mueve.
+
+    Con `codigo_barras` en None se le QUITA el código, que hace falta
+    cuando se pegó al producto equivocado.
+    """
+    producto = producto_repository.obtener_por_id(db, usuario_id, producto_id)
+    if not producto:
+        raise NoEncontrado("Producto no encontrado")
+
+    if codigo_barras and producto_repository.existe_codigo_barras(
+        db, usuario_id, codigo_barras, excluir_id=producto_id
+    ):
+        # Mensaje con el nombre del otro producto: al escanear en una
+        # estantería es facilísimo pegar el mismo código dos veces, y saber
+        # A CUÁL se lo pegaste antes es lo que permite corregirlo sin ir a
+        # buscar entre trescientos.
+        otro = producto_repository.obtener_por_codigo_barras(db, usuario_id, codigo_barras)
+        raise ErrorNegocio(
+            f"Ese código ya es de '{otro.nombre}'. Si te equivocaste, quítaselo "
+            "a ese producto primero."
+        )
+
+    return producto_repository.asignar_codigo_barras(db, producto, codigo_barras)
+
+
 def eliminar(db: Session, usuario_id: str, producto_id: str):
     producto = producto_repository.obtener_por_id(db, usuario_id, producto_id)
     if not producto:

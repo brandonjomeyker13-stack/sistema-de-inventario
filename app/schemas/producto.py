@@ -64,6 +64,24 @@ class ProductoActualizar(ProductoCrear):
     pass
 
 
+class CodigoBarrasAsignar(BaseModel):
+    """Solo el código, para pegárselo a un producto que ya existe.
+
+    Va aparte de ProductoActualizar a propósito: ese exige el producto
+    entero, y aquí se manda desde el celular mientras se camina la
+    estantería. Reenviar la cantidad desde una pantalla que no la muestra
+    sería una forma cómoda de pisar el stock sin querer.
+    """
+
+    # None quita el código, que hace falta cuando se pegó al equivocado.
+    codigo_barras: str | None = Field(default=None, max_length=64)
+
+    @field_validator("codigo_barras")
+    @classmethod
+    def limpiar_codigo(cls, v: str | None) -> str | None:
+        return normalizar(v)
+
+
 class ProductoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
