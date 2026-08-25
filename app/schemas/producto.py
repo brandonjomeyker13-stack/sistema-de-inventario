@@ -65,7 +65,7 @@ class ProductoActualizar(ProductoCrear):
 
 
 class CodigoBarrasAsignar(BaseModel):
-    """Solo el código, para pegárselo a un producto que ya existe.
+    """Un código, para SUMÁRSELO a un producto que ya existe.
 
     Va aparte de ProductoActualizar a propósito: ese exige el producto
     entero, y aquí se manda desde el celular mientras se camina la
@@ -73,7 +73,8 @@ class CodigoBarrasAsignar(BaseModel):
     sería una forma cómoda de pisar el stock sin querer.
     """
 
-    # None quita el código, que hace falta cuando se pegó al equivocado.
+    # None quita TODOS los códigos, que hace falta cuando se pegaron al
+    # producto equivocado. Para quitar uno solo está DELETE .../codigos/{codigo}.
     codigo_barras: str | None = Field(default=None, max_length=64)
 
     @field_validator("codigo_barras")
@@ -90,7 +91,13 @@ class ProductoOut(BaseModel):
     cantidad: int
     precio: float
     cuanto_costo: float
+    # El primero de la lista. Se conserva para que las pantallas que
+    # esperan un solo código sigan funcionando.
     codigo_barras: str | None = None
+    # TODOS los códigos del producto. Son varios cuando el mismo producto
+    # viene de marcas distintas —cuadernos de cien hojas de tres marcas—,
+    # cada una con su EAN de fábrica.
+    codigos_barras: list[str] = []
     categoria_id: str | None = None
     # El frontend lo usa para saber si pintar existencias o no: mostrar
     # "quedan 0" junto a una fotocopia asusta sin motivo.

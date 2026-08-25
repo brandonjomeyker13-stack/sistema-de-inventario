@@ -29,7 +29,7 @@ def importado(db, usuario):
 def test_se_le_pega_el_codigo(db, usuario, importado):
     assert importado.codigo_barras is None
 
-    product_service.asignar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
+    product_service.agregar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
 
     db.refresh(importado)
     assert importado.codigo_barras == "7702001234567"
@@ -39,7 +39,7 @@ def test_no_toca_nada_mas(db, usuario, importado):
     """La razón de que exista aparte de `editar`: desde el celular no se
     manda la cantidad, y reenviarla desde una pantalla que no la muestra
     sería una forma cómoda de pisar el stock sin querer."""
-    product_service.asignar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
+    product_service.agregar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
 
     db.refresh(importado)
     assert importado.nombre == "Cuaderno argollado"
@@ -50,7 +50,7 @@ def test_no_toca_nada_mas(db, usuario, importado):
 
 def test_despues_de_asignarlo_ya_se_puede_vender_escaneando(db, usuario, importado):
     """Cierra la cadena: importar, pegar el código, vender con el lector."""
-    product_service.asignar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
+    product_service.agregar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
 
     venta = venta_service.vender(
         db, usuario.id, [{"codigo_barras": "7702001234567", "cantidad": 2}],
@@ -61,7 +61,7 @@ def test_despues_de_asignarlo_ya_se_puede_vender_escaneando(db, usuario, importa
 def test_el_upc_de_12_digitos_se_guarda_como_ean13(db, usuario, importado):
     """Misma normalización que en todos lados: el mismo producto leído por
     dos lectores distintos tiene que seguir siendo uno solo."""
-    product_service.asignar_codigo_barras(db, usuario.id, importado.id, "012345678905")
+    product_service.agregar_codigo_barras(db, usuario.id, importado.id, "012345678905")
 
     db.refresh(importado)
     assert importado.codigo_barras == "0012345678905"
@@ -70,8 +70,8 @@ def test_el_upc_de_12_digitos_se_guarda_como_ean13(db, usuario, importado):
 def test_se_le_puede_quitar(db, usuario, importado):
     """Hace falta cuando se pegó al producto equivocado, que escaneando en
     una estantería pasa."""
-    product_service.asignar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
-    product_service.asignar_codigo_barras(db, usuario.id, importado.id, None)
+    product_service.agregar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
+    product_service.agregar_codigo_barras(db, usuario.id, importado.id, None)
 
     db.refresh(importado)
     assert importado.codigo_barras is None
@@ -81,18 +81,18 @@ def test_un_codigo_repetido_dice_de_quien_es(db, usuario, importado):
     """Saber A CUÁL se lo pegaste antes es lo que permite corregirlo sin ir
     a buscar entre trescientos productos."""
     otro = product_service.agregar(db, usuario.id, "Lápiz Mirado", 50, 1200, 800)
-    product_service.asignar_codigo_barras(db, usuario.id, otro.id, "7702001234567")
+    product_service.agregar_codigo_barras(db, usuario.id, otro.id, "7702001234567")
 
     with pytest.raises(ErrorNegocio) as exc:
-        product_service.asignar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
+        product_service.agregar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
 
     assert "Lápiz Mirado" in str(exc.value)
 
 
 def test_reasignarle_el_mismo_codigo_al_mismo_producto_no_falla(db, usuario, importado):
     """Escanear dos veces el mismo producto no puede dar error."""
-    product_service.asignar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
-    product_service.asignar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
+    product_service.agregar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
+    product_service.agregar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
 
     db.refresh(importado)
     assert importado.codigo_barras == "7702001234567"
@@ -100,7 +100,7 @@ def test_reasignarle_el_mismo_codigo_al_mismo_producto_no_falla(db, usuario, imp
 
 def test_no_se_le_asigna_a_un_producto_de_otro_negocio(db, usuario, otro_usuario, importado):
     with pytest.raises(NoEncontrado):
-        product_service.asignar_codigo_barras(
+        product_service.agregar_codigo_barras(
             db, otro_usuario.id, importado.id, "7702001234567",
         )
 
@@ -110,8 +110,8 @@ def test_dos_negocios_pueden_usar_el_mismo_codigo(db, usuario, otro_usuario, imp
     justamente lo que hará comparables sus datos algún día."""
     ajeno = product_service.agregar(db, otro_usuario.id, "Cuaderno", 10, 6000, 4000)
 
-    product_service.asignar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
-    product_service.asignar_codigo_barras(db, otro_usuario.id, ajeno.id, "7702001234567")
+    product_service.agregar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
+    product_service.agregar_codigo_barras(db, otro_usuario.id, ajeno.id, "7702001234567")
 
     db.refresh(importado)
     db.refresh(ajeno)
@@ -133,7 +133,7 @@ def test_el_pendiente_de_la_canasta_se_resuelve_solo(db, usuario, importado):
     assert vista["pendientes"] == 1
     assert vista["items"][0]["existe"] is False
 
-    product_service.asignar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
+    product_service.agregar_codigo_barras(db, usuario.id, importado.id, "7702001234567")
 
     vista = canasta_service.ver(db, canasta["id"], usuario.id, None)
     assert vista["pendientes"] == 0

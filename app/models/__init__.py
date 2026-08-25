@@ -25,6 +25,7 @@ from app.models.usuario import Usuario
 from app.models.categoria import Categoria
 from app.models.cliente import Cliente
 from app.models.producto import Producto
+from app.models.producto_codigo import ProductoCodigo
 from app.models.venta import Venta
 from app.models.venta_item import VentaItem
 from app.models.abono import Abono
@@ -40,6 +41,7 @@ __all__ = [
     "Categoria",
     "Cliente",
     "Producto",
+    "ProductoCodigo",
     "Venta",
     "VentaItem",
     "Abono",

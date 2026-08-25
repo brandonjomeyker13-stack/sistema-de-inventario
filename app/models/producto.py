@@ -19,6 +19,7 @@ from sqlalchemy import (
     Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Index,
     CheckConstraint,
 )
+from sqlalchemy.orm import relationship
 
 from app.database.session import Base
 
@@ -62,10 +63,6 @@ class Producto(Base):
     # `nombre` sigue guardando lo que escribió el tendero, con sus tildes y
     # mayúsculas: es lo que se muestra en pantalla.
     nombre_clave = Column(String(255), nullable=True, index=True)
-    # EAN-13 y similares. Nullable a propósito: la mayoría de productos de
-    # una tienda de barrio (el arroz a granel, los huevos sueltos) no
-    # tienen código, y obligar a inventárselo sería peor que no tenerlo.
-    codigo_barras = Column(String(64), nullable=True)
     categoria_id = Column(String(36), ForeignKey("categorias.id"), nullable=True, index=True)
     cantidad = Column(Integer, nullable=False, default=0)
     precio = Column(Float, nullable=False, default=0)
@@ -110,6 +107,39 @@ class Producto(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    # Los códigos de barras del producto. Son varios porque un mismo
+    # producto —cuadernos de cien hojas— puede venir de tres marcas, cada
+    # una con su EAN de fábrica. Ver app/models/producto_codigo.py.
+    #
+    # lazy="selectin": al listar el inventario, SQLAlchemy los trae todos en
+    # UNA consulta extra en vez de una por producto. Con lazy por defecto
+    # esto sería un N+1 silencioso en la pantalla más usada.
+    codigos = relationship(
+        "ProductoCodigo",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="ProductoCodigo.creado_en",
+    )
+
+    @property
+    def codigo_barras(self) -> str | None:
+        """El primer código, para quien espere uno solo.
+
+        Existía como columna y ahora se calcula. Se conserva para que el
+        frontend actual —y todo el código que pregunta "¿cuál es el código
+        de este producto?"— siga funcionando mientras adopta la lista.
+
+        Es de solo lectura a propósito: escribir aquí daría la ilusión de
+        estar cambiando "el" código cuando puede haber tres, y borraría los
+        otros sin avisar. Para modificarlos están agregar_codigo y
+        quitar_codigo en el repositorio.
+        """
+        return self.codigos[0].codigo if self.codigos else None
+
+    @property
+    def codigos_barras(self) -> list[str]:
+        return [c.codigo for c in self.codigos]
+
 
 # Índice único parcial: solo se aplica en Postgres (postgresql_where). En
 # la validación real contra duplicados también hay una comprobación a
@@ -122,15 +152,14 @@ Index(
     postgresql_where=Producto.eliminado.is_(False),
 )
 
-# Mismo criterio para el código de barras: único dentro de un negocio,
-# entre los productos vivos. Dos tiendas distintas pueden (y van a) tener
-# el mismo EAN, eso es justamente lo que hará comparables sus datos.
-# El índice ignora las filas con codigo_barras NULL, así que los muchos
-# productos sin código no chocan entre sí.
-Index(
-    "uq_producto_usuario_codigo_activo",
-    Producto.usuario_id, Producto.codigo_barras,
-    unique=True,
-    postgresql_where=Producto.eliminado.is_(False),
-)
+# El índice único del código de barras se fue con la columna. La unicidad
+# ahora vive en `producto_codigos` (ver uq_producto_codigo_usuario), que es
+# donde tiene que estar: un producto puede tener varios códigos, y cada
+# código sigue identificando a uno solo dentro del negocio.
+#
+# Ojo con una diferencia: aquel índice era PARCIAL (solo entre productos no
+# eliminados), así que borrar un producto liberaba su código. El nuevo no
+# puede serlo porque `eliminado` está en la otra tabla — por eso
+# producto_repository.eliminar() borra los códigos del producto al darlo de
+# baja, y así el código queda libre igual que antes.
 

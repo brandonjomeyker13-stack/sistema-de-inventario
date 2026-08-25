@@ -114,7 +114,7 @@ def editar(
 
 
 @router.put("/{producto_id}/codigo-barras", response_model=ProductoOut)
-def asignar_codigo_barras(
+def agregar_codigo_barras(
     producto_id: str,
     datos: CodigoBarrasAsignar,
     usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
@@ -133,14 +133,38 @@ def asignar_codigo_barras(
     imposible, y además arriesgaría pisar el stock desde una pantalla que
     ni lo muestra.
 
-    Con `codigo_barras: null` se le quita el código, para cuando se pegó al
-    producto equivocado.
+    SUMA el código, no reemplaza los que ya tenga. Un producto puede tener
+    varios porque los cuadernos de cien hojas vienen de tres marcas, cada
+    una con su EAN de fábrica, y para el tendero son un solo producto:
+    mismo precio, mismo costo, mismo montón en la estantería.
+
+    Con `codigo_barras: null` se le quitan TODOS. Para quitar uno solo está
+    DELETE /productos/{id}/codigo-barras/{codigo}.
 
     Si el código ya es de otro producto responde 400 diciendo DE CUÁL, que
     es lo que permite corregirlo sin buscar entre trescientos.
     """
-    return product_service.asignar_codigo_barras(
+    return product_service.agregar_codigo_barras(
         db, usuario_actual.id, producto_id, datos.codigo_barras,
+    )
+
+
+@router.delete("/{producto_id}/codigo-barras/{codigo}", response_model=ProductoOut)
+def quitar_codigo_barras(
+    producto_id: str,
+    codigo: str,
+    usuario_actual: Usuario = Depends(exigir_suscripcion_activa),
+    db: Session = Depends(get_db),
+):
+    """Le quita UN código concreto, dejándole los demás.
+
+    Hace falta cuando se pegó al producto equivocado: escaneando
+    trescientos productos en una estantería, pasar el Norma estando en la
+    fila del Scribe pasa. Sin esto habría que quitarle todos y volver a
+    escanear los que sí estaban bien.
+    """
+    return product_service.quitar_codigo_barras(
+        db, usuario_actual.id, producto_id, codigo,
     )
 
 

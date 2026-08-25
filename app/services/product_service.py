@@ -135,9 +135,17 @@ def editar(
     )
 
 
-def asignar_codigo_barras(db: Session, usuario_id: str, producto_id: str,
+def agregar_codigo_barras(db: Session, usuario_id: str, producto_id: str,
                           codigo_barras: str | None):
     """Le pega un código de barras a un producto que ya existe.
+
+    SUMA, no reemplaza. Un producto puede tener varios códigos porque los
+    cuadernos de cien hojas vienen de tres marcas, cada una con su EAN de
+    fábrica, y para el tendero son un solo producto: mismo precio, mismo
+    costo, mismo montón en la estantería.
+
+    Con `codigo_barras` en None se le quitan TODOS, que hace falta cuando
+    se pegaron al producto equivocado.
 
     Es la pieza que conecta la importación con el lector, y sin ella la
     cadena está rota: la plantilla crea los productos SIN código, y el
@@ -150,10 +158,7 @@ def asignar_codigo_barras(db: Session, usuario_id: str, producto_id: str,
     además, reenviar la cantidad desde una pantalla que no la muestra es
     una forma cómoda de pisar el stock sin querer.
 
-    Aquí solo se toca el código. Nada más se mueve.
-
-    Con `codigo_barras` en None se le QUITA el código, que hace falta
-    cuando se pegó al producto equivocado.
+    Aquí solo se tocan los códigos. Nada más se mueve.
     """
     producto = producto_repository.obtener_por_id(db, usuario_id, producto_id)
     if not producto:
@@ -172,7 +177,23 @@ def asignar_codigo_barras(db: Session, usuario_id: str, producto_id: str,
             "a ese producto primero."
         )
 
-    return producto_repository.asignar_codigo_barras(db, producto, codigo_barras)
+    if codigo_barras is None:
+        return producto_repository.quitar_codigo(db, producto, None)
+    return producto_repository.agregar_codigo(db, producto, codigo_barras)
+
+
+def quitar_codigo_barras(db: Session, usuario_id: str, producto_id: str,
+                         codigo_barras: str):
+    """Le quita UN código concreto, dejándole los demás.
+
+    Hace falta cuando se pegó al producto equivocado: en una estantería con
+    trescientos productos, escanear el Norma estando en la fila del Scribe
+    pasa. Sin esto habría que quitarle todos y volver a escanear.
+    """
+    producto = producto_repository.obtener_por_id(db, usuario_id, producto_id)
+    if not producto:
+        raise NoEncontrado("Producto no encontrado")
+    return producto_repository.quitar_codigo(db, producto, codigo_barras)
 
 
 def eliminar(db: Session, usuario_id: str, producto_id: str):

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.codigos import normalizar
 from app.core.texto import clave_nombre
 from app.models.producto import Producto
+from app.models.producto_codigo import ProductoCodigo
 
 
 def _query_listado(db: Session, usuario_id: str, q: str | None = None,
@@ -20,18 +21,32 @@ def _query_listado(db: Session, usuario_id: str, q: str | None = None,
     )
     if q:
         termino = f"%{q.strip()}%"
-        # Busca por nombre o por código: el tendero teclea "arr" o pasa el
-        # lector, y en los dos casos espera encontrar lo mismo.
+        # Busca por nombre o por CUALQUIERA de sus códigos: el tendero
+        # teclea "arr" o pasa el lector, y en los dos casos espera encontrar
+        # lo mismo. La subconsulta evita duplicar el producto cuando varios
+        # de sus códigos coinciden con el término.
+        con_ese_codigo = (
+            db.query(ProductoCodigo.producto_id)
+            .filter(
+                ProductoCodigo.usuario_id == usuario_id,
+                ProductoCodigo.codigo.ilike(termino),
+            )
+        )
         query = query.filter(
-            Producto.nombre.ilike(termino) | Producto.codigo_barras.ilike(termino)
+            Producto.nombre.ilike(termino) | Producto.id.in_(con_ese_codigo)
         )
     if categoria_id:
         query = query.filter(Producto.categoria_id == categoria_id)
     if sin_codigo:
-        # Los que faltan por escanear. Después de importar la plantilla
-        # son TODOS, y esta es la lista de trabajo del tendero: pasa el
-        # lector por cada uno y deja de tener que buscarlos por nombre.
-        query = query.filter(Producto.codigo_barras.is_(None))
+        # Los que faltan por escanear: los que no tienen NINGÚN código.
+        # Después de importar la plantilla son TODOS, y esta es la lista de
+        # trabajo del tendero: pasa el lector por cada uno y deja de tener
+        # que buscarlos por nombre.
+        con_codigo = (
+            db.query(ProductoCodigo.producto_id)
+            .filter(ProductoCodigo.usuario_id == usuario_id)
+        )
+        query = query.filter(~Producto.id.in_(con_codigo))
     return query
 
 
@@ -86,15 +101,21 @@ def obtener_por_nombre(db: Session, usuario_id: str, nombre: str) -> Producto | 
 
 
 def obtener_por_codigo_barras(db: Session, usuario_id: str, codigo: str) -> Producto | None:
+    """El producto al que pertenece ese código.
+
+    Un producto puede tener varios —cuadernos de tres marcas, cada una con
+    su EAN— y cualquiera de ellos lleva al mismo sitio.
+    """
     return (
         db.query(Producto)
+        .join(ProductoCodigo, ProductoCodigo.producto_id == Producto.id)
         .filter(
             Producto.usuario_id == usuario_id,
             Producto.eliminado.is_(False),
             # Se normaliza también al buscar: si el catálogo guarda el
             # EAN-13 y el lector manda el UPC-A de 12 dígitos, tienen que
             # encontrarse igual.
-            Producto.codigo_barras == normalizar(codigo),
+            ProductoCodigo.codigo == normalizar(codigo),
         )
         .first()
     )
@@ -133,26 +154,34 @@ def mapa_por_codigo_barras(db: Session, usuario_id: str, codigos: list[str]) -> 
     normalizados = [c for c in (normalizar(c) for c in codigos if c) if c]
     if not normalizados:
         return {}
-    productos = (
-        db.query(Producto)
+    filas = (
+        db.query(ProductoCodigo.codigo, Producto)
+        .join(Producto, Producto.id == ProductoCodigo.producto_id)
         .filter(
             Producto.usuario_id == usuario_id,
             Producto.eliminado.is_(False),
-            Producto.codigo_barras.in_(normalizados),
+            ProductoCodigo.codigo.in_(normalizados),
         )
         .all()
     )
-    return {p.codigo_barras: p for p in productos}
+    # Indexado por el código BUSCADO, no por el "principal" del producto:
+    # si un cuaderno tiene tres códigos y se escanearon dos, las dos líneas
+    # tienen que encontrar su producto.
+    return {codigo: producto for codigo, producto in filas}
 
 
 def existe_codigo_barras(db: Session, usuario_id: str, codigo: str, excluir_id: str | None = None) -> bool:
-    query = db.query(Producto).filter(
-        Producto.usuario_id == usuario_id,
-        Producto.eliminado.is_(False),
-        # Misma normalización que al buscar: si no, registrar el UPC-A
-        # corto de un producto que ya está guardado como EAN-13 pasaría
-        # el control de duplicados y lo duplicaría.
-        Producto.codigo_barras == normalizar(codigo),
+    query = (
+        db.query(ProductoCodigo.id)
+        .join(Producto, Producto.id == ProductoCodigo.producto_id)
+        .filter(
+            Producto.usuario_id == usuario_id,
+            Producto.eliminado.is_(False),
+            # Misma normalización que al buscar: si no, registrar el UPC-A
+            # corto de un producto que ya está guardado como EAN-13 pasaría
+            # el control de duplicados y lo duplicaría.
+            ProductoCodigo.codigo == normalizar(codigo),
+        )
     )
     if excluir_id:
         query = query.filter(Producto.id != excluir_id)
@@ -190,16 +219,22 @@ def crear(
         cantidad=cantidad if controla_stock else 0,
         controla_stock=controla_stock,
         precio=precio, cuanto_costo=costo,
-        # Normalizado también aquí, no solo en el schema: el servicio se
-        # llama desde sitios que no pasan por Pydantic (la recepción de
-        # mercancía, por ejemplo) y el dato guardado tiene que ser
-        # canónico venga de donde venga.
-        codigo_barras=normalizar(codigo_barras),
         categoria_id=categoria_id,
         # Un servicio no lleva existencias, así que tampoco umbral.
         stock_minimo=stock_minimo if controla_stock else None,
     )
     db.add(producto)
+    db.flush()      # para tener el id antes de colgarle el código
+
+    # Normalizado también aquí, no solo en el schema: el servicio se llama
+    # desde sitios que no pasan por Pydantic (la recepción de mercancía) y
+    # el dato guardado tiene que ser canónico venga de donde venga.
+    codigo = normalizar(codigo_barras)
+    if codigo:
+        db.add(ProductoCodigo(
+            usuario_id=usuario_id, producto_id=producto.id, codigo=codigo,
+        ))
+
     db.commit()
     db.refresh(producto)
     return producto
@@ -219,30 +254,80 @@ def actualizar(
     producto.cantidad = cantidad if producto.controla_stock else 0
     producto.precio = precio
     producto.cuanto_costo = costo
-    # Cadena vacía se guarda como NULL: si no, el índice único trataría
-    # dos productos "sin código" como duplicados y el segundo fallaría.
-    producto.codigo_barras = normalizar(codigo_barras)
     producto.categoria_id = categoria_id
+
+    # El código se AGREGA si no lo tenía; nunca se borran los otros.
+    #
+    # Es deliberado y es la parte delicada de todo esto: el formulario de
+    # editar manda UN código, pero el producto puede tener tres (cuadernos
+    # de tres marcas). Si esto reemplazara la lista, cambiarle el precio a
+    # un producto desde el formulario de siempre le borraría dos marcas sin
+    # que nadie se entere.
+    #
+    # Mandar None significa "no toco los códigos", no "quítaselos todos":
+    # un campo de un solo valor no puede expresar la diferencia. Para
+    # quitarlos está quitar_codigo.
+    codigo = normalizar(codigo_barras)
+    if codigo and codigo not in producto.codigos_barras:
+        db.add(ProductoCodigo(
+            usuario_id=producto.usuario_id, producto_id=producto.id, codigo=codigo,
+        ))
     producto.stock_minimo = stock_minimo if producto.controla_stock else None
     db.commit()
     db.refresh(producto)
     return producto
 
 
-def asignar_codigo_barras(db: Session, producto: Producto,
-                          codigo_barras: str | None) -> Producto:
-    """Cambia SOLO el código de barras. No toca ningún otro campo.
+def agregar_codigo(db: Session, producto: Producto, codigo_barras: str) -> Producto:
+    """Le suma un código más al producto, sin tocar los que ya tenía.
 
-    Se normaliza igual que en todos lados: un UPC-A de 12 dígitos se guarda
-    como su EAN-13, para que el mismo producto leído por dos lectores
-    distintos siga siendo uno solo.
+    Es lo que permite que los cuadernos de tres marcas sean UN producto:
+    se escanea el Norma, se escanea el Scribe, y los dos apuntan aquí.
+
+    Repetir un código que ya tiene no hace nada. Escanear dos veces el
+    mismo producto en la estantería no puede dar error.
     """
-    producto.codigo_barras = normalizar(codigo_barras)
+    codigo = normalizar(codigo_barras)
+    if not codigo or codigo in producto.codigos_barras:
+        return producto
+
+    db.add(ProductoCodigo(
+        usuario_id=producto.usuario_id, producto_id=producto.id, codigo=codigo,
+    ))
+    db.commit()
+    db.refresh(producto)
+    return producto
+
+
+def quitar_codigo(db: Session, producto: Producto, codigo_barras: str | None) -> Producto:
+    """Le quita un código. Con None se los quita TODOS.
+
+    Quitar uno hace falta cuando se pegó al producto equivocado, que
+    escaneando trescientos en una estantería pasa.
+    """
+    if codigo_barras is None:
+        producto.codigos.clear()
+    else:
+        codigo = normalizar(codigo_barras)
+        for fila in list(producto.codigos):
+            if fila.codigo == codigo:
+                producto.codigos.remove(fila)
+
     db.commit()
     db.refresh(producto)
     return producto
 
 
 def eliminar(db: Session, producto: Producto) -> None:
+    """Borrado suave, pero los códigos SÍ se liberan.
+
+    Antes el índice único era parcial —solo entre productos vivos—, así que
+    borrar un producto dejaba su código disponible para otro. La unicidad
+    ahora vive en `producto_codigos`, donde no existe la noción de
+    "eliminado", así que hay que soltarlos a mano para conservar ese
+    comportamiento. Si no, un código quedaría atrapado para siempre por un
+    producto que ya nadie ve.
+    """
     producto.eliminado = True
+    producto.codigos.clear()
     db.commit()
