@@ -172,6 +172,39 @@ def exigir_suscripcion_activa(
     return usuario_actual
 
 
+def exigir_admin(
+    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+) -> Usuario:
+    """Solo para nosotros. Protege TODO el panel de administración.
+
+    Esta es la única dependencia del proyecto que abre la puerta a los
+    datos de OTROS negocios, y por eso conviene entender qué la hace
+    distinta.
+
+    En todo lo demás, la seguridad no depende de una comprobación: depende
+    de que cada consulta lleve `usuario_id` y solo pueda alcanzar las filas
+    de quien pregunta. Aunque alguien se colara, no habría nada que ver.
+    Aquí no: aquí la única barrera es este `if`.
+
+    Por eso no hay ningún endpoint de admin sin esta dependencia, y por eso
+    `es_admin` no se puede escribir desde ninguna parte de la API.
+
+    NO exige suscripción al día ni correo verificado: un administrador
+    tiene que poder entrar precisamente cuando hay que arreglar cuentas, y
+    dejarnos fuera del panel por nuestra propia fecha de pago sería
+    absurdo.
+    """
+    if not usuario_actual.es_admin:
+        # 403 y no 404: las rutas del panel son conocidas, esconder su
+        # existencia no protege de nada y sí complica depurar por qué a
+        # alguien no le funciona.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Esta sección es solo para administradores",
+        )
+    return usuario_actual
+
+
 def obtener_usuario_opcional(
     credenciales: HTTPAuthorizationCredentials | None = Depends(_esquema_bearer_opcional),
     db: Session = Depends(get_db),

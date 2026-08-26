@@ -85,3 +85,17 @@ class Usuario(Base):
     # desde el primer día, sin que nadie tenga que configurar nada. Una
     # función que exige configuración previa no la usa nadie.
     stock_minimo_defecto = Column(Integer, nullable=False, default=5)
+
+    # Quién puede entrar al panel de administración (nosotros, no los
+    # clientes). Da acceso a ver el estado de TODAS las cuentas y a cambiar
+    # sus fechas de suscripción.
+    #
+    # NUNCA se pone desde la API. No aparece en ningún schema de entrada —
+    # ni en el registro, ni al editar el perfil, ni en el login con Google.
+    # Si algún día se colara en uno, cualquiera podría hacerse
+    # administrador con una petición.
+    #
+    # El primer admin se marca a mano en Supabase:
+    #     UPDATE usuarios SET es_admin = true WHERE email = '...';
+    # y desde ahí se pueden marcar los demás desde el panel.
+    es_admin = Column(Boolean, nullable=False, default=False)

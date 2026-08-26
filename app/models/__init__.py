@@ -34,6 +34,7 @@ from app.models.movimiento import MovimientoInventario
 from app.models.sesion import Sesion
 from app.models.token_verificacion import TokenVerificacion
 from app.models.token_password import TokenPassword
+from app.models.registro_admin import RegistroAdmin
 
 __all__ = [
     "Base",
@@ -51,4 +52,5 @@ __all__ = [
     "Sesion",
     "TokenVerificacion",
     "TokenPassword",
+    "RegistroAdmin",
 ]
