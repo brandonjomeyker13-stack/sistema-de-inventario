@@ -45,8 +45,8 @@ class Venta(Base):
     )
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
-    producto_id = Column(String(36), ForeignKey("productos.id"), nullable=True)
+    usuario_id = Column(String(36), ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
+    producto_id = Column(String(36), ForeignKey("productos.id", ondelete="SET NULL"), nullable=True)
     nombre_producto = Column(String(255), nullable=False)
     cantidad_vendida = Column(Integer, nullable=False)
     precio_venta_total = Column(Float, nullable=False)
@@ -55,7 +55,7 @@ class Venta(Base):
     # Fiado: la mercancía salió pero el dinero no entró. `cliente_id` es
     # obligatorio cuando es_fiado es True (se valida en el servicio): una
     # deuda sin deudor no sirve de nada.
-    cliente_id = Column(String(36), ForeignKey("clientes.id"), nullable=True, index=True)
+    cliente_id = Column(String(36), ForeignKey("clientes.id", ondelete="SET NULL"), nullable=True, index=True)
     es_fiado = Column(Boolean, nullable=False, default=False)
     # Hasta cuándo tiene el cliente para pagar. Lo decide el tendero en
     # cada fiado; nullable porque hay fiados sin fecha acordada ("cuando

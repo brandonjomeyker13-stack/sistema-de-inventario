@@ -22,7 +22,7 @@ class Cliente(Base):
     __tablename__ = "clientes"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
+    usuario_id = Column(String(36), ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
     nombre = Column(String(255), nullable=False)
     telefono = Column(String(64), nullable=True)
     # Plazo habitual de este cliente, en días. Sirve de valor por defecto

@@ -23,7 +23,7 @@ class Categoria(Base):
     __tablename__ = "categorias"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
+    usuario_id = Column(String(36), ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
     nombre = Column(String(120), nullable=False)
     eliminado = Column(Boolean, nullable=False, default=False)
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

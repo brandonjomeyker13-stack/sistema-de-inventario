@@ -28,8 +28,8 @@ class VentaItem(Base):
     __tablename__ = "venta_items"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    venta_id = Column(String(36), ForeignKey("ventas.id"), nullable=False, index=True)
-    producto_id = Column(String(36), ForeignKey("productos.id"), nullable=True)
+    venta_id = Column(String(36), ForeignKey("ventas.id", ondelete="CASCADE"), nullable=False, index=True)
+    producto_id = Column(String(36), ForeignKey("productos.id", ondelete="SET NULL"), nullable=True)
     nombre_producto = Column(String(255), nullable=False)
     cantidad = Column(Integer, nullable=False)
     precio_unitario = Column(Float, nullable=False)

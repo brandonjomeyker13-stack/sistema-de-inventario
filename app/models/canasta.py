@@ -52,7 +52,7 @@ class Canasta(Base):
     __tablename__ = "canastas"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
+    usuario_id = Column(String(36), ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Credencial del celular para esta canasta y solo esta. NO es un JWT:
     # si le pasáramos la sesión completa por la URL del QR, cualquiera que
@@ -70,7 +70,7 @@ class Canasta(Base):
     expira_en = Column(DateTime(timezone=True), nullable=False)
 
     creado_en = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    venta_id = Column(String(36), ForeignKey("ventas.id"), nullable=True)
+    venta_id = Column(String(36), ForeignKey("ventas.id", ondelete="SET NULL"), nullable=True)
 
     items = relationship(
         "CanastaItem",
@@ -84,11 +84,11 @@ class CanastaItem(Base):
     __tablename__ = "canasta_items"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    canasta_id = Column(String(36), ForeignKey("canastas.id"), nullable=False, index=True)
+    canasta_id = Column(String(36), ForeignKey("canastas.id", ondelete="CASCADE"), nullable=False, index=True)
     # Nullable desde que existen las canastas de inventario: al dar de
     # alta mercancía se escanean códigos que todavía no son ningún
     # producto. La línea existe, el producto aún no.
-    producto_id = Column(String(36), ForeignKey("productos.id"), nullable=True)
+    producto_id = Column(String(36), ForeignKey("productos.id", ondelete="SET NULL"), nullable=True)
     # El código escaneado que no está en el catálogo. Se guarda para que
     # el PC pueda abrir el formulario de alta con el código ya puesto.
     codigo_pendiente = Column(String(64), nullable=True)

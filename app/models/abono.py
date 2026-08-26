@@ -24,7 +24,7 @@ class Abono(Base):
     __tablename__ = "abonos"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    venta_id = Column(String(36), ForeignKey("ventas.id"), nullable=False, index=True)
+    venta_id = Column(String(36), ForeignKey("ventas.id", ondelete="CASCADE"), nullable=False, index=True)
     monto = Column(Float, nullable=False)
     # Fecha del negocio, igual que en ventas (ver app/core/fechas.py).
     fecha = Column(String(10), nullable=False)

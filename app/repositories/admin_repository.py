@@ -73,15 +73,21 @@ def conteos_de_uso(db: Session, desde: str) -> dict[str, dict]:
     }
 
 
-def registrar_cambio(db: Session, admin_id: str, usuario_id: str, accion: str,
+def registrar_cambio(db: Session, admin_id: str, usuario, accion: str,
                      antes: str | None, despues: str | None,
                      nota: str | None) -> RegistroAdmin:
     """Anota un cambio en la bitácora. No hace commit: quien llama guarda
     el cambio y su registro en la misma transacción, para que no pueda
-    quedar uno sin el otro."""
+    quedar uno sin el otro.
+
+    Recibe el usuario entero y no solo su id para poder guardar el nombre y
+    el correo en texto. Eso es lo que mantiene la fila legible cuando la
+    cuenta se borra y el id queda en NULL.
+    """
     registro = RegistroAdmin(
         admin_id=admin_id,
-        usuario_id=usuario_id,
+        usuario_id=usuario.id,
+        descripcion=f"{usuario.nombre_negocio} ({usuario.email})",
         accion=accion,
         valor_antes=antes,
         valor_despues=despues,

@@ -24,6 +24,13 @@ saberlo. Se guardan el valor de antes y el de después: con solo el nuevo,
 una fila dice "le puso hasta el 30" pero no si eso fue extenderle un mes o
 quitarle tres.
 
+Las dos llaves van con SET NULL y no CASCADE, y las columnas admiten NULL:
+es lo que permite que la bitácora sobreviva a borrar una cuenta. Con
+CASCADE, eliminar un negocio se llevaría por delante el registro de que lo
+eliminaste. Por eso también se guarda `descripcion`, con el nombre y el
+correo en texto: una fila con el id en NULL diría "alguien le hizo algo a
+alguien".
+
 Revision ID: 0025
 Revises: 0024
 """
@@ -54,15 +61,16 @@ def upgrade() -> None:
     op.create_table(
         "registros_admin",
         sa.Column("id", sa.String(length=36), nullable=False),
-        sa.Column("admin_id", sa.String(length=36), nullable=False),
-        sa.Column("usuario_id", sa.String(length=36), nullable=False),
+        sa.Column("admin_id", sa.String(length=36), nullable=True),
+        sa.Column("usuario_id", sa.String(length=36), nullable=True),
+        sa.Column("descripcion", sa.String(length=255), nullable=True),
         sa.Column("accion", sa.String(length=20), nullable=False),
         sa.Column("valor_antes", sa.String(length=64), nullable=True),
         sa.Column("valor_despues", sa.String(length=64), nullable=True),
         sa.Column("nota", sa.String(length=255), nullable=True),
         sa.Column("creado_en", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["admin_id"], ["usuarios.id"]),
-        sa.ForeignKeyConstraint(["usuario_id"], ["usuarios.id"]),
+        sa.ForeignKeyConstraint(["admin_id"], ["usuarios.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["usuario_id"], ["usuarios.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_registros_admin_admin_id", "registros_admin", ["admin_id"])

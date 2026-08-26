@@ -48,7 +48,7 @@ class Producto(Base):
     )
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
+    usuario_id = Column(String(36), ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
     nombre = Column(String(255), nullable=False)
 
     # El nombre en su forma canónica —minúsculas, sin tildes, espacios
@@ -63,7 +63,7 @@ class Producto(Base):
     # `nombre` sigue guardando lo que escribió el tendero, con sus tildes y
     # mayúsculas: es lo que se muestra en pantalla.
     nombre_clave = Column(String(255), nullable=True, index=True)
-    categoria_id = Column(String(36), ForeignKey("categorias.id"), nullable=True, index=True)
+    categoria_id = Column(String(36), ForeignKey("categorias.id", ondelete="SET NULL"), nullable=True, index=True)
     cantidad = Column(Integer, nullable=False, default=0)
     precio = Column(Float, nullable=False, default=0)
     cuanto_costo = Column(Float, nullable=False, default=0)

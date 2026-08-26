@@ -46,8 +46,8 @@ class MovimientoInventario(Base):
     __tablename__ = "movimientos_inventario"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
-    producto_id = Column(String(36), ForeignKey("productos.id"), nullable=False, index=True)
+    usuario_id = Column(String(36), ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
+    producto_id = Column(String(36), ForeignKey("productos.id", ondelete="CASCADE"), nullable=False, index=True)
 
     tipo = Column(String(20), nullable=False)
     # Con signo: +10 entró, -3 salió. stock_antes + cantidad = stock_despues.
@@ -63,7 +63,7 @@ class MovimientoInventario(Base):
     motivo = Column(String(255), nullable=True)
     # Presente cuando el movimiento vino de una venta. Permite ir del
     # libro a la venta que lo causó sin adivinar por fecha.
-    venta_id = Column(String(36), ForeignKey("ventas.id"), nullable=True)
+    venta_id = Column(String(36), ForeignKey("ventas.id", ondelete="SET NULL"), nullable=True)
 
     # Fecha del negocio (ver app/core/fechas.py), no la del servidor.
     fecha = Column(String(10), nullable=False)

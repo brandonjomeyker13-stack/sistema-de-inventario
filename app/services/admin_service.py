@@ -126,7 +126,7 @@ def cambiar_suscripcion(db: Session, admin, usuario_id: str,
     usuario.suscripcion_hasta = hasta
 
     admin_repository.registrar_cambio(
-        db, admin.id, usuario_id, CAMBIO_SUSCRIPCION, antes, hasta, nota,
+        db, admin.id, usuario, CAMBIO_SUSCRIPCION, antes, hasta, nota,
     )
     db.commit()
 
@@ -152,7 +152,7 @@ def cambiar_activo(db: Session, admin, usuario_id: str, activo: bool,
     usuario.activo = activo
 
     admin_repository.registrar_cambio(
-        db, admin.id, usuario_id, CAMBIO_ACTIVO, str(antes), str(activo), nota,
+        db, admin.id, usuario, CAMBIO_ACTIVO, str(antes), str(activo), nota,
     )
     db.commit()
 
@@ -183,7 +183,7 @@ def cambiar_admin(db: Session, admin, usuario_id: str, es_admin: bool,
     usuario.es_admin = es_admin
 
     admin_repository.registrar_cambio(
-        db, admin.id, usuario_id, CAMBIO_ADMIN, str(antes), str(es_admin), nota,
+        db, admin.id, usuario, CAMBIO_ADMIN, str(antes), str(es_admin), nota,
     )
     db.commit()
 

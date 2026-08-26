@@ -47,10 +47,10 @@ class ProductoCodigo(Base):
     # producto, pero tenerlo aquí permite dos cosas que importan: el índice
     # único por negocio de más abajo, y que las consultas filtren por
     # usuario_id directamente, igual que todas las demás del proyecto.
-    usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
+    usuario_id = Column(String(36), ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
 
     producto_id = Column(
-        String(36), ForeignKey("productos.id"), nullable=False, index=True,
+        String(36), ForeignKey("productos.id", ondelete="CASCADE"), nullable=False, index=True,
     )
 
     # Ya normalizado (ver app/core/codigos.py): un UPC-A de 12 dígitos se

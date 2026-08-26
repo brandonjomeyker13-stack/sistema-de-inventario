@@ -29,8 +29,12 @@ from app.database.session import Base
 CAMBIO_SUSCRIPCION = "suscripcion"
 CAMBIO_ACTIVO = "activo"
 CAMBIO_ADMIN = "admin"
+# La cuenta se borró por completo. Es la única acción irreversible, y la
+# razón de que esta tabla no vaya en cascada: su registro tiene que
+# sobrevivir a la cuenta que describe.
+BORRADO = "borrado"
 
-ACCIONES = (CAMBIO_SUSCRIPCION, CAMBIO_ACTIVO, CAMBIO_ADMIN)
+ACCIONES = (CAMBIO_SUSCRIPCION, CAMBIO_ACTIVO, CAMBIO_ADMIN, BORRADO)
 
 
 class RegistroAdmin(Base):
@@ -38,10 +42,28 @@ class RegistroAdmin(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
-    # Quién lo hizo.
-    admin_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
-    # A quién se lo hizo.
-    usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
+    # Quién lo hizo y a quién. SET NULL y nullable, no CASCADE.
+    #
+    # Es lo que permite que la bitácora sobreviva a borrar una cuenta. Con
+    # CASCADE, eliminar un negocio se llevaría por delante el registro de
+    # que lo eliminaste — que es precisamente el que más falta hace después.
+    admin_id = Column(
+        String(36), ForeignKey("usuarios.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
+    usuario_id = Column(
+        String(36), ForeignKey("usuarios.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
+
+    # Quién era, en texto, al momento de la acción: "Papelería Sol
+    # (sol@correo.com)". Sin esto, una fila con el id en NULL diría "alguien
+    # le hizo algo a alguien" y no serviría para nada.
+    #
+    # Se guarda copia por el mismo motivo que `venta_items` copia el nombre
+    # del producto: para seguir siendo legible cuando lo que referenciaba ya
+    # no exista.
+    descripcion = Column(String(255), nullable=True)
 
     accion = Column(String(20), nullable=False)
 

@@ -32,7 +32,7 @@ class Sesion(Base):
     __tablename__ = "sesiones"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    usuario_id = Column(String(36), ForeignKey("usuarios.id"), nullable=False, index=True)
+    usuario_id = Column(String(36), ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
     token_hash = Column(String(64), unique=True, nullable=False, index=True)
     expira_en = Column(DateTime(timezone=True), nullable=False)
     revocado = Column(Boolean, nullable=False, default=False)
