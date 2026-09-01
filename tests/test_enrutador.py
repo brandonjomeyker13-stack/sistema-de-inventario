@@ -218,3 +218,145 @@ def test_toda_intencion_tiene_sus_dos_funciones():
     from app.services.enrutador_service.intenciones import NOMBRES
 
     assert set(enrutador_service.INTENCIONES_RESUELTAS) == set(NOMBRES)
+
+
+# --- 6. Las trampas del contexto -----------------------------------------
+#
+# "Acabar" significa dos cosas opuestas según la construcción: "se está
+# acabando" es que queda poco, y "acabo de vender" es que pasó hace un
+# momento. Sin distinguirlas, el enrutador le mandaría un pedido de
+# proveedor a alguien que solo estaba contando lo que le acababa de pasar.
+
+@pytest.mark.parametrize("pregunta", [
+    "acabo de hacer una venta",
+    "acabamos de recibir mercancía",
+    "acaba de entrar un cliente",
+    "se me acaba de cerrar todo",
+])
+def test_el_pasado_reciente_no_es_que_algo_se_acabe(pregunta):
+    """`acabar + de + infinitivo` es pasado reciente, no agotarse. La
+    exclusión existe porque sin ella, en cuanto se activó la tolerancia a
+    erratas, estas frases empezaron a caer en la lista de compra."""
+    assert clasificar(pregunta) not in ("lista_de_compra", "agotados")
+
+
+def test_lo_que_si_es_que_algo_se_acaba(pregunta=None):
+    """La contraprueba: si la exclusión se pasara de estricta, dejaría de
+    reconocer las preguntas de verdad."""
+    assert clasificar("¿qué productos se están acabando?") == "lista_de_compra"
+    assert clasificar("se me acaban los productos") == "lista_de_compra"
+    assert clasificar("ya se me acabó el papel") == "agotados"
+
+
+# --- 7. Escribir rápido y con errores ------------------------------------
+
+@pytest.mark.parametrize("pregunta, intencion", [
+    ("q se me akaban los produktos", "lista_de_compra"),   # fonética
+    ("kuanto bendi hoy", "ventas_de_hoy"),                 # k por c, b por v
+    ("kien me debe", "fiados"),                            # qu por k
+    ("cuanto he vendiido hoy", "ventas_de_hoy"),           # letra de más
+    ("que productos estan acabndo", "lista_de_compra"),    # letra de menos
+])
+def test_aguanta_como_escribe_un_tendero_con_prisa(pregunta, intencion):
+    """No son errores al azar: son los de siempre, los que el oído no
+    distingue. b/v, s/z/c, ll/y y la hache muda se pliegan antes de
+    comparar, y encima se tolera una letra en las palabras largas."""
+    assert clasificar(pregunta) == intencion
+
+
+def test_la_tolerancia_es_corta_a_proposito():
+    """Con dos letras de tolerancia, `acabo` alcanzaría a `acaban` y
+    "acabo de vender" se volvería una lista de compra. Perder una
+    coincidencia cuesta una llamada; acertar de más no tiene arreglo."""
+    assert clasificar("acabo de vender") is None
+
+
+# --- 8. El saludo es un prefijo, no una intención ------------------------
+
+@pytest.mark.parametrize("pregunta", ["hola", "buenas tardes", "gracias", "hola buenas"])
+def test_un_saludo_solo_es_un_saludo(pregunta):
+    assert clasificar(pregunta) == "saludo"
+
+
+@pytest.mark.parametrize("pregunta, intencion", [
+    ("hola, ¿cuántos productos tengo?", "valor_inventario"),
+    ("hola, ¿cuánto gané hoy?", "ganancia_de_hoy"),
+    ("buenas, ¿qué puedes hacer?", "ayuda"),
+    ("hola, ¿quién me debe?", "fiados"),
+])
+def test_el_saludo_no_le_gana_a_la_pregunta_que_lo_sigue(pregunta, intencion):
+    """Casi nadie escribe solo "hola": escribe "hola, ¿cuánto vendí?".
+
+    Sin esta regla el saludo ganaba la clasificación y el tendero recibía un
+    "hola" por respuesta a una pregunta de verdad — o chocaba con la otra
+    intención y no respondía ninguna."""
+    assert clasificar(pregunta) == intencion
+
+
+# --- 9. Las que no miran el negocio --------------------------------------
+
+def test_reporta_un_fallo_y_no_le_responden_con_inventario(db, usuario):
+    """Sin la intención de soporte, "se me cierra la aplicación" se iba al
+    modelo, que con el inventario delante y sin saber nada del estado del
+    sistema contestaba cualquier cosa."""
+    assert clasificar("la app no me funciona") == "soporte"
+    assert clasificar("se me traba cuando vendo") == "soporte"
+
+    respuesta = _resolver(db, usuario, "la app no me funciona")["respuesta"]
+    assert "no lo puedo arreglar" in respuesta
+
+
+def test_la_ayuda_sale_del_catalogo_y_no_puede_quedarse_vieja(db, usuario):
+    """Escrita a mano, la lista de lo que sabe hacer envejece en cuanto se
+    agrega una intención. Y prometerle a un tendero algo que no existe es
+    peor que no explicárselo."""
+    from app.services.enrutador_service.redaccion import QUE_SE_PUEDE_PREGUNTAR
+    from app.services.enrutador_service.intenciones import NOMBRES, SIN_DATOS
+
+    faltan = [n for n in NOMBRES
+              if n not in SIN_DATOS and n not in QUE_SE_PUEDE_PREGUNTAR]
+    assert faltan == [], f"Intenciones sin línea de ayuda: {faltan}"
+
+    respuesta = _resolver(db, usuario, "¿qué puedes hacer?")["respuesta"]
+    assert "Qué tienes que comprar" in respuesta
+    assert "Quién te debe" in respuesta
+
+
+def test_saludar_no_toca_la_base_de_datos(db, usuario):
+    """Es de lo más escrito en cualquier chat. Que cueste una consulta a
+    Supabase por cada "hola" sería absurdo."""
+    from app.services.enrutador_service import datos
+
+    assert datos.saludo(db, usuario.id) == {}
+    assert _resolver(db, usuario, "hola")["intencion"] == "saludo"
+
+
+def test_las_palabras_cortas_no_se_corrigen(db=None):
+    """`vendi` tiene cinco letras, así que `vendii` no la alcanza. No es una
+    limitación: es la defensa. En palabras cortas, una letra de diferencia
+    suele ser otra palabra —`acabo` y `acaban`, `pedir` y `pedid`— y ahí
+    corregir es inventar."""
+    assert clasificar("¿cuánto vendii hoy?") is None
+
+
+# --- 10. Saludar es redacción, no clasificación --------------------------
+
+def test_si_saluda_se_le_devuelve_el_saludo(db, usuario):
+    """Un tendero que escribe "hola, ¿cuánto gané?" está hablando con
+    alguien, no consultando una base de datos. Cuesta cero devolvérselo."""
+    respuesta = _resolver(db, usuario, "hola, ¿quién me debe?")["respuesta"]
+
+    assert respuesta.startswith("Hola. ")
+    assert "No te debe nadie" in respuesta
+
+
+def test_devuelve_el_saludo_que_le_dijeron(db, usuario):
+    respuesta = _resolver(db, usuario, "buenas tardes, ¿quién me debe?")["respuesta"]
+    assert respuesta.startswith("Buenas tardes. ")
+
+
+def test_el_saludo_no_se_duplica_cuando_solo_saludan(db, usuario):
+    """Si la frase entera es un saludo, la respuesta YA es un saludo. Un
+    "Hola. Hola, pregúntame por..." sonaría a robot roto."""
+    respuesta = _resolver(db, usuario, "hola")["respuesta"]
+    assert not respuesta.startswith("Hola. Hola")

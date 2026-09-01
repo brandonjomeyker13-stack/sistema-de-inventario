@@ -152,3 +152,60 @@ def valor_inventario(datos: dict) -> str:
             f"Si la vendieras toda a precio de venta serían "
             f"{pesos(datos['al_precio_de_venta'])}, "
             f"repartidos en {datos['cuantos_productos']} productos.")
+
+
+# --- Las tres que no miran el negocio ------------------------------------
+
+def saludo(_datos: dict) -> str:
+    """Corto a propósito: un saludo largo estorba a quien viene con prisa."""
+    return ("Hola. Pregúntame por tus ventas, tu inventario o los fiados. "
+            "También te digo qué te toca comprar.")
+
+
+# Qué hace cada intención, en palabras del tendero. El diccionario vive aquí
+# —es texto— pero la LISTA de intenciones vive en intenciones.py, y una
+# prueba comprueba que no falte ninguna.
+#
+# Así la ayuda se genera del catálogo real y no puede quedar desactualizada:
+# si mañana se agrega una intención y no se le escribe la línea, falla la
+# prueba en vez de que el tendero lea una ayuda incompleta.
+QUE_SE_PUEDE_PREGUNTAR = {
+    "lista_de_compra": "Qué tienes que comprar",
+    "ventas_de_hoy": "Cuánto has vendido hoy",
+    "ganancia_de_hoy": "Cuánto has ganado hoy",
+    "fiados": "Quién te debe y cuánto",
+    "sin_codigo": "Qué productos no tienen código de barras",
+    "agotados": "Qué se te acabó",
+    "valor_inventario": "Cuánto vale tu inventario",
+}
+
+
+def ayuda(_datos: dict) -> str:
+    """Lo que Trackie sabe hacer, sacado del catálogo de intenciones.
+
+    Se genera y no se escribe a mano porque una lista escrita a mano se
+    queda vieja en cuanto se agrega una intención — y prometerle a un
+    tendero algo que no existe es peor que no explicárselo.
+    """
+    from app.services.enrutador_service.intenciones import NOMBRES
+
+    lineas = [QUE_SE_PUEDE_PREGUNTAR[n] for n in NOMBRES
+              if n in QUE_SE_PUEDE_PREGUNTAR]
+
+    return ("Te respondo sobre tu negocio con los datos que ya tienes "
+            "cargados. Por ejemplo:\n\n"
+            + "\n".join(f"· {l}" for l in lineas)
+            + "\n\nTambién puedo proponerte crear un producto o registrar "
+              "mercancía que llegó, para que tú confirmes.")
+
+
+def soporte(_datos: dict) -> str:
+    """No se le responde con datos del negocio a quien reporta un fallo.
+
+    Sin esta intención, "se me cierra la aplicación" se iba al modelo, que
+    con el inventario delante y sin saber nada del estado del sistema
+    contestaba cualquier cosa.
+    """
+    return ("Eso suena a un problema de la aplicación y no lo puedo arreglar "
+            "yo desde aquí. Cierra y vuelve a entrar; si sigue igual, "
+            "escríbenos y lo revisamos.")

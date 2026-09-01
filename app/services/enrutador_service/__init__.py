@@ -45,7 +45,7 @@ cuanto ve un verbo de hacer.
 from sqlalchemy.orm import Session
 
 from app.services.enrutador_service import datos, intenciones, redaccion
-from app.services.enrutador_service.intenciones import clasificar
+from app.services.enrutador_service.intenciones import clasificar, saludo_inicial
 
 __all__ = ["resolver", "clasificar", "INTENCIONES_RESUELTAS"]
 
@@ -92,4 +92,17 @@ def resolver(db: Session, usuario_id: str, pregunta: str) -> dict | None:
         return None
 
     consultar, escribir = INTENCIONES_RESUELTAS[intencion]
-    return {"intencion": intencion, "respuesta": escribir(consultar(db, usuario_id))}
+    respuesta = escribir(consultar(db, usuario_id))
+
+    # Si venía saludando, se le devuelve el saludo. Cuesta cero y un tendero
+    # que escribe "hola, ¿cuánto gané?" está hablando con alguien, no
+    # consultando una base de datos.
+    #
+    # Va aquí y no en la clasificación a propósito: el saludo no cambia qué
+    # preguntó, solo cómo se le contesta.
+    if intencion != "saludo":
+        saludo = saludo_inicial(pregunta)
+        if saludo:
+            respuesta = f"{saludo}. {respuesta}"
+
+    return {"intencion": intencion, "respuesta": respuesta}

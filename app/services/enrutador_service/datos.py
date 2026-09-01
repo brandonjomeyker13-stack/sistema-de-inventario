@@ -110,3 +110,22 @@ def valor_inventario(db: Session, usuario_id: str) -> dict:
         "al_costo": round(sum(p.cuanto_costo * p.cantidad for p in con_stock), 2),
         "al_precio_de_venta": round(sum(p.precio * p.cantidad for p in con_stock), 2),
     }
+
+
+# --- Las tres que no consultan nada --------------------------------------
+#
+# Saludar, explicar qué sabe hacer y recibir un "no me funciona" no necesitan
+# mirar el negocio. Existen igual como funciones para que el emparejamiento
+# de intenciones no tenga excepciones: cada intención tiene su función aquí y
+# su función en redaccion.py, sin casos especiales que recordar.
+#
+# Que no abran una conexión a Supabase es justamente la gracia: son de lo más
+# preguntado y cuestan cero.
+
+def _sin_consulta(db: Session, usuario_id: str) -> dict:
+    return {}
+
+
+saludo = _sin_consulta
+ayuda = _sin_consulta
+soporte = _sin_consulta
