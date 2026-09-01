@@ -4,11 +4,12 @@ services:
     # `runtime` es la clave actual; `env` era el nombre viejo y sigue
     # funcionando, pero conviene no quedarse en el deprecado.
     runtime: python
-    # OJO al pagar: si subes el plan desde el panel pero esta línea sigue
-    # diciendo `free`, una sincronización del Blueprint puede devolverte al
-    # plan gratuito — y con él, el servicio durmiéndose a los 15 minutos.
-    # Cambia esto a `starter` EN EL MISMO MOMENTO en que pagues.
-    plan: free
+    # De pago desde el 27/08/2026. NO lo bajes a `free`: además de que el
+    # servicio volvería a dormirse a los 15 minutos, las horas gratis son
+    # del WORKSPACE entero —750 al mes, compartidas entre todos los
+    # servicios gratuitos— y al agotarse Render suspende TODOS de golpe
+    # hasta el inicio del mes siguiente. Fue lo que pasó ese día.
+    plan: starter
     # Render considera el servicio vivo cuando esta ruta responde 200. Sin
     # esto solo comprueba que el puerto esté abierto, y un arranque que
     # falla a medias (por ejemplo, una migración rota) podría darse por

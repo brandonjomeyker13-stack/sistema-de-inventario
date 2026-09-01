@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ErrorNegocio
 from app.core.llm import completar_json
+from app.services import enrutador_service
 from app.services.asistente_service import acciones, contexto
 from app.services.asistente_service.instrucciones import (
     ACCIONES_PERMITIDAS, INSTRUCCIONES,
@@ -65,6 +66,23 @@ def preguntar(db: Session, usuario_id: str, pregunta: str,
     pregunta = (pregunta or "").strip()
     if not pregunta:
         raise ErrorNegocio("La pregunta está vacía")
+
+    # Primero el enrutador. Si reconoce la pregunta, responde él: sin tokens,
+    # sin esperar al proveedor y con una sola consulta en vez de las que arma
+    # el contexto completo. Si no la reconoce devuelve None y todo sigue como
+    # antes. Ver app/services/enrutador_service.
+    #
+    # Su respuesta nunca lleva acción: proponer crear un producto o registrar
+    # mercancía sigue siendo del modelo, y por eso el enrutador se aparta en
+    # cuanto ve un verbo de hacer.
+    #
+    # El historial no se le pasa porque no lo necesita: una pregunta de
+    # seguimiento ("¿y ayer?") no coincide con ninguna intención y cae al
+    # modelo sola. La continuidad no se pierde: el frontend guarda lo que
+    # respondió el enrutador y lo manda como un turno más.
+    atajo = enrutador_service.resolver(db, usuario_id, pregunta)
+    if atajo is not None:
+        return {"respuesta": atajo["respuesta"], "accion": None}
 
     datos = construir_contexto(db, usuario_id, pregunta)
 

@@ -15,10 +15,21 @@ os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("SECRET_KEY", "clave-solo-para-pruebas-con-largo-suficiente")
 os.environ.setdefault("ZONA_HORARIA", "America/Bogota")
 # Sin clave de Groq ni de Resend: las pruebas no deben llamar a nadie por
-# la red. Si algún día una lo intenta, fallará de forma evidente en vez de
-# gastar cuota en silencio.
-os.environ.pop("GROQ_API_KEY", None)
-os.environ.pop("RESEND_API_KEY", None)
+# la red. Si alguna lo intenta, falla de forma evidente en vez de gastar
+# cuota —o de mandar un correo de verdad— en silencio.
+#
+# SE ASIGNA VACÍO, NO SE BORRA. Antes aquí había un `os.environ.pop(...)` y
+# no servía de nada: `Settings` está declarado con `env_file=".env"`, así
+# que pydantic lee ESE ARCHIVO además del entorno. Borrar la variable del
+# entorno no borra la línea del .env, y las pruebas seguían saliendo a
+# internet con las claves reales sin que nadie lo notara.
+#
+# Las variables de entorno SÍ tienen prioridad sobre el .env, así que
+# ponerlas vacías es lo que de verdad las anula. Ambos sitios que las usan
+# comprueban por verdad (app/core/llm.py y app/core/correo.py), así que la
+# cadena vacía se comporta igual que no tenerla.
+os.environ["GROQ_API_KEY"] = ""
+os.environ["RESEND_API_KEY"] = ""
 
 import pytest  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
