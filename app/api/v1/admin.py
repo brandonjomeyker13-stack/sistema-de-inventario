@@ -27,7 +27,7 @@ from app.api.deps import exigir_admin
 from app.database.session import get_db
 from app.models.usuario import Usuario
 from app.schemas.admin import (
-    CambiarActivo, CambiarAdmin, CambiarSuscripcion, ConsultaOut,
+    AvanceOut, CambiarActivo, CambiarAdmin, CambiarSuscripcion, ConsultaOut,
     EtiquetaOut, EtiquetarConsulta, ListaConsultasOut,
     ListaNegociosOut, ListaValoracionesOut, NegocioDetalleOut,
     RegistroAdminOut, RevisarValoracion, ValoracionOut,
@@ -249,3 +249,19 @@ def revisar_valoracion(
     ojo desde el panel, porque viene con la prueba de que estaba mal.
     """
     return valoracion_service.revisar(db, admin, valoracion_id, datos.intencion_correcta)
+
+
+@router.get("/entrenamiento", response_model=AvanceOut)
+def avance_del_entrenamiento(db: Session = Depends(get_db)):
+    """Cuánto falta para poder entrenar el clasificador propio.
+
+    Solo el AVANCE. Entrenar sigue siendo un script que se corre a mano
+    (ver entrenamiento/entrenar.py), y a propósito: metería scikit-learn en
+    el servidor —más de cien megas que producción no necesita— y es una
+    operación que hay que LEER antes de decidir nada. Detrás de un botón se
+    pulsa sin mirar el resultado.
+
+    Los números salen de la misma función que usa el script, así que el
+    panel y la terminal nunca pueden decir cosas distintas.
+    """
+    return consulta_service.avance(db)

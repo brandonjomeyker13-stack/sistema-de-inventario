@@ -50,48 +50,25 @@ import argparse
 import sys
 from collections import Counter
 
-# Cuántos ejemplos por intención hacen falta. Son las referencias honestas
-# para un clasificador de texto con esta cantidad de clases:
-#
-#   ÚTIL   — empieza a ser mejor que adivinar y ya se puede medir
-#   BUENO  — se puede poner en producción sin sustos
-#
-# Por debajo de ÚTIL los números que salgan no significan nada, y creerles
-# es peor que no tenerlos.
-UTIL = 50
-BUENO = 200
-
-# --- Los ejemplos ---------------------------------------------------------
-#
-# Salen de dos sitios y los dos valen lo mismo: una etiqueta puesta a mano
-# en el panel. La diferencia es que las de `valoraciones` vienen de una queja
-# de un tendero, así que suelen ser los casos difíciles.
-
-CONSULTA_SQL = """
-SELECT pregunta, intencion_correcta
-  FROM consultas
- WHERE estado = 'etiquetada'
-   AND intencion_correcta IS NOT NULL
-UNION ALL
-SELECT pregunta, intencion_correcta
-  FROM valoraciones
- WHERE intencion_correcta IS NOT NULL
-"""
-
-
 def cargar_ejemplos() -> tuple[list[str], list[str]]:
-    """Los ejemplos etiquetados, tal como están en la base."""
+    """Los ejemplos etiquetados: las preguntas del panel y las quejas.
+
+    La consulta NO se escribe aquí. Vive en `consulta_service`, y el panel de
+    administración usa exactamente la misma. Con dos consultas separadas, el
+    día que una cambie el panel y la terminal darían números distintos sobre
+    lo mismo y nadie sabría cuál creer.
+    """
     sys.path.insert(0, ".")
-    from sqlalchemy import text
     from app.database.session import SessionLocal
+    from app.services import consulta_service
 
     with SessionLocal() as db:
-        filas = db.execute(text(CONSULTA_SQL)).all()
+        pares = consulta_service.ejemplos_etiquetados(db)
 
-    return [f[0] for f in filas], [f[1] for f in filas]
+    return [p[0] for p in pares], [p[1] for p in pares]
 
 
-def _informe_de_avance(conteo: Counter) -> None:
+def _informe_de_avance() -> None:
     """Cuánto falta para poder entrenar, intención por intención.
 
     Existe para que este script sirva DESDE HOY. Sin esto solo daría un
@@ -102,27 +79,32 @@ def _informe_de_avance(conteo: Counter) -> None:
     Lo parejo importa tanto como el total: mil ejemplos de una intención y
     tres de otra no entrenan nada. La columna de lo que falta es la que dice
     a cuáles hay que apuntar.
+
+    Los números salen de `consulta_service.avance`, la misma función que
+    alimenta el panel.
     """
     sys.path.insert(0, ".")
-    from app.services.consulta_service import ETIQUETAS_VALIDAS
+    from app.database.session import SessionLocal
+    from app.services import consulta_service
 
-    total = sum(conteo.values())
+    with SessionLocal() as db:
+        datos = consulta_service.avance(db)
+
     print("=" * 52)
-    print(f"AVANCE DEL CONJUNTO — {total} de ~{UTIL * len(ETIQUETAS_VALIDAS)} "
+    print(f"AVANCE DEL CONJUNTO — {datos['total']} de ~{datos['objetivo']} "
           f"para poder entrenar")
     print("=" * 52)
     print(f"  {'intención':<20}{'tiene':>7}{'faltan':>9}\n")
 
-    for intencion in ETIQUETAS_VALIDAS:
-        tiene = conteo.get(intencion, 0)
-        faltan = max(0, UTIL - tiene)
-        marca = "  ✓" if faltan == 0 else ""
-        print(f"  {intencion:<20}{tiene:>7}{faltan:>9}{marca}")
+    for fila in datos["intenciones"]:
+        marca = "  ✓" if fila["faltan"] == 0 else ""
+        print(f"  {fila['intencion']:<20}{fila['ejemplos']:>7}"
+              f"{fila['faltan']:>9}{marca}")
 
-    listas = sum(1 for i in ETIQUETAS_VALIDAS if conteo.get(i, 0) >= UTIL)
-    print(f"\n  {listas} de {len(ETIQUETAS_VALIDAS)} intenciones llegan a "
-          f"{UTIL} ejemplos.")
-    print(f"  Para producción conviene {BUENO} de cada una.\n")
+    print(f"\n  {datos['listas']} de {len(datos['intenciones'])} intenciones "
+          f"llegan a {datos['por_intencion']} ejemplos.")
+    print(f"  Para producción conviene {datos['por_intencion_produccion']} "
+          f"de cada una.\n")
 
 
 def main() -> int:
@@ -151,7 +133,7 @@ def main() -> int:
         print(f"  {cuantos:>5}  {intencion}")
     print()
 
-    _informe_de_avance(conteo)
+    _informe_de_avance()
 
     # Una intención con dos ejemplos no se puede ni partir en entrenamiento y
     # prueba. Se descarta con un aviso en vez de reventar: es normal al

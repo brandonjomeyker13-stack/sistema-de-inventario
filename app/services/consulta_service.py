@@ -136,3 +136,75 @@ def etiquetas(db: Session) -> list[dict]:
 
     return [{"intencion": nombre, "ejemplos": conteo.get(nombre, 0)}
             for nombre in ETIQUETAS_VALIDAS]
+
+
+# Cuántos ejemplos por intención hacen falta para entrenar un clasificador.
+# Son las referencias honestas para esta cantidad de clases:
+#
+#   ÚTIL   — empieza a ser mejor que adivinar, y ya se puede medir
+#   BUENO  — se puede poner en producción sin sustos
+#
+# Por debajo de ÚTIL los números que salgan no significan nada, y creerles
+# es peor que no tenerlos.
+EJEMPLOS_UTIL = 50
+EJEMPLOS_BUENO = 200
+
+
+def ejemplos_etiquetados(db: Session) -> list[tuple[str, str]]:
+    """Todo lo etiquetado a mano, de las DOS tablas.
+
+    Las preguntas del panel y las quejas calificadas valen lo mismo: las dos
+    son una etiqueta puesta por una persona. Las de `valoraciones` suelen ser
+    además los casos difíciles, porque vienen de alguien a quien la respuesta
+    no le sirvió.
+
+    Vive aquí y no en el script de entrenamiento para que el panel y el
+    script cuenten LO MISMO. Con dos consultas separadas, el día que una
+    cambie darían números distintos y nadie sabría cuál creer.
+    """
+    from app.models.valoracion import Valoracion
+
+    preguntas = db.query(
+        ConsultaRegistrada.pregunta, ConsultaRegistrada.intencion_correcta,
+    ).filter(
+        ConsultaRegistrada.estado == ETIQUETADA,
+        ConsultaRegistrada.intencion_correcta.isnot(None),
+    ).all()
+
+    quejas = db.query(
+        Valoracion.pregunta, Valoracion.intencion_correcta,
+    ).filter(Valoracion.intencion_correcta.isnot(None)).all()
+
+    return [(p, i) for p, i in list(preguntas) + list(quejas)]
+
+
+def avance(db: Session) -> dict:
+    """Cuánto falta para poder entrenar, intención por intención.
+
+    Lo parejo importa tanto como el total: mil ejemplos de una intención y
+    tres de otra no entrenan nada. Por eso se devuelve cuántos faltan de cada
+    una y no solo la suma — esa columna es la que dice a cuáles apuntar.
+    """
+    conteo = {}
+    for _, intencion in ejemplos_etiquetados(db):
+        conteo[intencion] = conteo.get(intencion, 0) + 1
+
+    intenciones = [
+        {
+            "intencion": nombre,
+            "ejemplos": conteo.get(nombre, 0),
+            "faltan": max(0, EJEMPLOS_UTIL - conteo.get(nombre, 0)),
+        }
+        for nombre in ETIQUETAS_VALIDAS
+    ]
+
+    return {
+        "total": sum(conteo.values()),
+        "objetivo": EJEMPLOS_UTIL * len(ETIQUETAS_VALIDAS),
+        "por_intencion": EJEMPLOS_UTIL,
+        "por_intencion_produccion": EJEMPLOS_BUENO,
+        # Cuántas intenciones ya llegaron. Es el número que dice si se puede
+        # entrenar: hacen falta al menos dos, y cuantas más mejor.
+        "listas": sum(1 for i in intenciones if i["faltan"] == 0),
+        "intenciones": intenciones,
+    }

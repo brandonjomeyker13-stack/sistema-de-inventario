@@ -262,3 +262,44 @@ def test_las_pendientes_y_descartadas_no_cuentan_como_huerfanas(db, admin):
     consulta_service.descartar(db, admin, _filas(db)[0].id)
 
     assert consulta_service.listar(db)["huerfanas"] == 0
+
+
+# --- El avance hacia poder entrenar --------------------------------------
+
+def test_el_avance_cuenta_las_dos_tablas(db, admin):
+    """El panel y el script de entrenamiento tienen que decir LO MISMO.
+
+    Los ejemplos salen de dos sitios —las preguntas etiquetadas y las quejas
+    calificadas— y los dos valen igual: son una etiqueta puesta por una
+    persona. Con dos consultas separadas, el día que una cambie darían
+    números distintos sobre lo mismo.
+    """
+    from app.models.valoracion import Valoracion
+
+    consulta_service.registrar(db, "¿qué me falta?", None)
+    consulta_service.etiquetar(db, admin, _filas(db)[0].id, "lista_de_compra")
+
+    db.add(Valoracion(
+        usuario_id=admin.id, pregunta="¿qué pido?", respuesta="...",
+        origen="modelo", valoracion="mala", estado="revisada",
+        intencion_correcta="lista_de_compra",
+    ))
+    db.commit()
+
+    avance = consulta_service.avance(db)
+    assert avance["total"] == 2
+
+    compra = next(i for i in avance["intenciones"]
+                  if i["intencion"] == "lista_de_compra")
+    assert compra["ejemplos"] == 2
+    assert compra["faltan"] == consulta_service.EJEMPLOS_UTIL - 2
+
+
+def test_el_avance_muestra_todas_las_intenciones_aunque_esten_en_cero(db):
+    """La columna de lo que falta es la que dice a cuáles apuntar. Una
+    intención sin ejemplos tiene que salir con su cero, no desaparecer."""
+    avance = consulta_service.avance(db)
+
+    assert len(avance["intenciones"]) == len(consulta_service.ETIQUETAS_VALIDAS)
+    assert all(i["ejemplos"] == 0 for i in avance["intenciones"])
+    assert avance["listas"] == 0

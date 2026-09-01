@@ -215,3 +215,23 @@ class ListaValoracionesOut(BaseModel):
 class RevisarValoracion(BaseModel):
     # Opcional: marcar como revisada sin etiquetar también vale.
     intencion_correcta: str | None = Field(default=None, max_length=40)
+
+
+# --- Cuánto falta para poder entrenar ------------------------------------
+
+class AvanceIntencionOut(BaseModel):
+    intencion: str
+    ejemplos: int
+    # Lo que falta para llegar al mínimo útil. Es la columna que dice a
+    # cuáles intenciones hay que apuntar: un conjunto desbalanceado no
+    # entrena nada por muchos ejemplos que tenga en total.
+    faltan: int
+
+
+class AvanceOut(BaseModel):
+    total: int
+    objetivo: int
+    por_intencion: int
+    por_intencion_produccion: int
+    listas: int
+    intenciones: list[AvanceIntencionOut] = []
