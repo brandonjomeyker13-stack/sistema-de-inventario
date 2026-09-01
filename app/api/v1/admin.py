@@ -27,10 +27,11 @@ from app.api.deps import exigir_admin
 from app.database.session import get_db
 from app.models.usuario import Usuario
 from app.schemas.admin import (
-    CambiarActivo, CambiarAdmin, CambiarSuscripcion,
+    CambiarActivo, CambiarAdmin, CambiarSuscripcion, ConsultaOut,
+    EtiquetaOut, EtiquetarConsulta, ListaConsultasOut,
     ListaNegociosOut, NegocioDetalleOut, RegistroAdminOut,
 )
-from app.services import admin_service
+from app.services import admin_service, consulta_service
 
 # La dependencia va en el router y no endpoint por endpoint a propósito: es
 # la única barrera que separa el panel de los datos de todos los clientes, y
@@ -138,3 +139,80 @@ def bitacora(
     a un cliente ya se le cobró, haya un dato en vez de dos memorias.
     """
     return admin_service.bitacora(db, limite)
+
+
+# --- Las preguntas que le hacen a Trackie --------------------------------
+#
+# Esta parte del panel no sirve para cobrar: sirve para que Trackie deje de
+# costar. Cada pregunta que el enrutador no reconoce se responde con el
+# modelo, y eso cuesta tokens y una espera. Etiquetándolas se sabe cuáles
+# vale la pena reconocer, y se va armando el conjunto con el que algún día
+# se entrena un clasificador propio.
+
+
+@router.get("/consultas", response_model=ListaConsultasOut)
+def listar_consultas(
+    estado: str | None = Query(default=None, description="pendiente | etiquetada | descartada"),
+    sin_reconocer: bool = Query(default=False, description="Solo las que el enrutador no supo"),
+    limite: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """Las preguntas, lo más preguntado primero.
+
+    `sin_reconocer=true` deja solo las que hoy cuestan tokens. Es la vista
+    por la que conviene empezar: etiquetar la pregunta que se hizo cuarenta
+    veces vale cuarenta veces más que etiquetar la que se hizo una.
+    """
+    return consulta_service.listar(db, estado, sin_reconocer, limite)
+
+
+@router.get("/consultas/etiquetas", response_model=list[EtiquetaOut])
+def etiquetas_disponibles(db: Session = Depends(get_db)):
+    """Con qué se puede etiquetar, y cuántos ejemplos lleva cada una.
+
+    El número importa tanto como la lista: un conjunto con mil ejemplos de
+    una intención y tres de otra no sirve para entrenar, y eso solo se ve
+    mirándolos juntos.
+    """
+    return consulta_service.etiquetas(db)
+
+
+@router.put("/consultas/{consulta_id}/etiqueta", response_model=ConsultaOut)
+def etiquetar_consulta(
+    consulta_id: str,
+    datos: EtiquetarConsulta,
+    admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(get_db),
+):
+    """Le pone a una pregunta la intención que de verdad tenía.
+
+    Solo se aceptan intenciones del catálogo cerrado, más "ninguna". Con
+    etiquetas libres, el conjunto acabaría con "compras", "compra" y
+    "lista_compra" como si fueran tres cosas distintas, y eso no tiene
+    arreglo después.
+    """
+    return consulta_service.etiquetar(db, admin, consulta_id, datos.intencion)
+
+
+@router.put("/consultas/{consulta_id}/descartar", response_model=ConsultaOut)
+def descartar_consulta(
+    consulta_id: str,
+    admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(get_db),
+):
+    """La pregunta no sirve ni como ejemplo: una prueba, un pegado, ruido.
+
+    No se borra a propósito. Borrada, la siguiente vez que alguien la
+    escribiera volvería a la bandeja y habría que descartarla otra vez.
+    """
+    return consulta_service.descartar(db, admin, consulta_id)
+
+
+@router.put("/consultas/{consulta_id}/reabrir", response_model=ConsultaOut)
+def reabrir_consulta(
+    consulta_id: str,
+    admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(get_db),
+):
+    """Deshace una etiqueta puesta por error. Vuelve a la bandeja."""
+    return consulta_service.reabrir(db, admin, consulta_id)

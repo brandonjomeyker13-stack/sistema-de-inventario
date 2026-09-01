@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ErrorNegocio
 from app.core.llm import completar_json
-from app.services import enrutador_service
+from app.services import consulta_service, enrutador_service
 from app.services.asistente_service import acciones, contexto
 from app.services.asistente_service.instrucciones import (
     ACCIONES_PERMITIDAS, INSTRUCCIONES,
@@ -82,7 +82,16 @@ def preguntar(db: Session, usuario_id: str, pregunta: str,
     # respondió el enrutador y lo manda como un turno más.
     atajo = enrutador_service.resolver(db, usuario_id, pregunta)
     if atajo is not None:
+        consulta_service.registrar(db, pregunta, atajo["intencion"])
         return {"respuesta": atajo["respuesta"], "accion": None}
+
+    # Se anota ANTES de llamar al modelo, no después. Una pregunta que hace
+    # fallar la llamada es justo de las que hay que ver en el panel, y si se
+    # anotara al final esa se perdería.
+    #
+    # Va con la intención en None: eso es lo que marca las preguntas que
+    # todavía cuestan tokens.
+    consulta_service.registrar(db, pregunta, None)
 
     datos = construir_contexto(db, usuario_id, pregunta)
 

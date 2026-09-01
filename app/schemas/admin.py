@@ -109,3 +109,56 @@ class CambiarActivo(BaseModel):
 class CambiarAdmin(BaseModel):
     es_admin: bool
     nota: str | None = Field(default=None, max_length=255)
+
+
+# --- Las preguntas que le hacen a Trackie --------------------------------
+#
+# UNA ADVERTENCIA HONESTA SOBRE ESTAS FILAS
+#
+# El resto de este archivo no expone nada del negocio de un cliente. Estas
+# sí pueden, de refilón: una pregunta como "¿cuántos cuadernos Norma me
+# quedan?" lleva dentro un nombre de producto.
+#
+# Es inevitable —sin el texto de la pregunta no hay nada que etiquetar— y es
+# mucho menos de lo que se ve en una venta. Por eso se guarda solo la
+# pregunta y NUNCA la respuesta: la respuesta lleva las cifras.
+
+class ConsultaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    pregunta: str
+    veces: int
+    # Lo que el enrutador creyó. None = se apartó y respondió el modelo, o
+    # sea que esa pregunta todavía cuesta tokens.
+    intencion_detectada: str | None = None
+    # La etiqueta puesta a mano. Es el dato del entrenamiento.
+    intencion_correcta: str | None = None
+    estado: str
+    creado_en: datetime | None = None
+    ultima_vez: datetime | None = None
+
+
+class ListaConsultasOut(BaseModel):
+    total: int
+    pendientes: int
+    # Cuántos ejemplos hay listos para entrenar. Es el número que dice
+    # cuánto falta.
+    etiquetadas: int
+    descartadas: int
+    # Cuántas preguntas distintas no reconoce el enrutador todavía.
+    sin_reconocer: int
+    # Contando repeticiones: cuántas veces se ha preguntado en total.
+    veces_en_total: int
+    consultas: list[ConsultaOut] = []
+
+
+class EtiquetarConsulta(BaseModel):
+    intencion: str = Field(max_length=40)
+
+
+class EtiquetaOut(BaseModel):
+    intencion: str
+    # Cuántas preguntas llevan ya esta etiqueta. Sirve para ver si el
+    # conjunto está desbalanceado: mil de una y tres de otra no entrenan.
+    ejemplos: int

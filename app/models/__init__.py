@@ -35,6 +35,7 @@ from app.models.sesion import Sesion
 from app.models.token_verificacion import TokenVerificacion
 from app.models.token_password import TokenPassword
 from app.models.registro_admin import RegistroAdmin
+from app.models.consulta import ConsultaRegistrada
 
 __all__ = [
     "Base",
@@ -53,4 +54,5 @@ __all__ = [
     "TokenVerificacion",
     "TokenPassword",
     "RegistroAdmin",
+    "ConsultaRegistrada",
 ]
