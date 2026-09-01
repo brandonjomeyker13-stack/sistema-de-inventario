@@ -30,7 +30,9 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ErrorNegocio
 from app.core.llm import completar_json
-from app.services import consulta_service, enrutador_service
+from app.models.valoracion import DEL_ENRUTADOR as ORIGEN_ENRUTADOR
+from app.models.valoracion import DEL_MODELO as ORIGEN_MODELO
+from app.services import consulta_service, enrutador_service, valoracion_service
 from app.services.asistente_service import acciones, contexto
 from app.services.asistente_service.instrucciones import (
     ACCIONES_PERMITIDAS, INSTRUCCIONES,
@@ -83,7 +85,8 @@ def preguntar(db: Session, usuario_id: str, pregunta: str,
     atajo = enrutador_service.resolver(db, usuario_id, pregunta)
     if atajo is not None:
         consulta_service.registrar(db, pregunta, atajo["intencion"])
-        return {"respuesta": atajo["respuesta"], "accion": None}
+        return _respuesta(pregunta, atajo["respuesta"], ORIGEN_ENRUTADOR,
+                          atajo["intencion"], None)
 
     # Se anota ANTES de llamar al modelo, no después. Una pregunta que hace
     # fallar la llamada es justo de las que hay que ver en el panel, y si se
@@ -114,10 +117,34 @@ def preguntar(db: Session, usuario_id: str, pregunta: str,
 
     salida = completar_json(mensajes)
 
+    return _respuesta(
+        pregunta,
+        str(salida.get("respuesta", "")).strip() or "No supe cómo responder a eso.",
+        ORIGEN_MODELO, None, acciones.validar(salida.get("accion")),
+    )
+
+
+def _respuesta(pregunta: str, texto: str, origen: str,
+               intencion: str | None, accion: dict | None) -> dict:
+    """La respuesta, sellada para que se pueda calificar después.
+
+    La firma existe porque el servidor NO guarda los intercambios: guardar
+    todas las respuestas metería las cifras de cada negocio en una tabla que
+    el panel puede leer, y eso es justo lo que se evita.
+
+    Sin ella, calificar obligaría a fiarse del texto que mande el navegador, y
+    cualquiera podría llenar el panel de "Trackie dijo esto" con cosas que
+    Trackie nunca dijo. Ese panel es el conjunto de entrenamiento: datos
+    inventados ahí no se notan hasta mucho después.
+
+    Ver app/core/firma.py y app/services/valoracion_service.py.
+    """
     return {
-        "respuesta": str(salida.get("respuesta", "")).strip()
-                     or "No supe cómo responder a eso.",
-        "accion": acciones.validar(salida.get("accion")),
+        "respuesta": texto,
+        "accion": accion,
+        "origen": origen,
+        "intencion": intencion,
+        "firma": valoracion_service.firmar(pregunta, texto, origen, intencion),
     }
 
 

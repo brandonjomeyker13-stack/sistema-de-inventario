@@ -162,3 +162,48 @@ class EtiquetaOut(BaseModel):
     # Cuántas preguntas llevan ya esta etiqueta. Sirve para ver si el
     # conjunto está desbalanceado: mil de una y tres de otra no entrenan.
     ejemplos: int
+
+
+# --- Las calificaciones que pone el tendero ------------------------------
+#
+# Estas SÍ llevan la respuesta con las cifras del negocio, y es la única
+# excepción en todo el panel. La justifica el consentimiento: la fila solo
+# existe porque el dueño pulsó el botón pidiendo que revisemos ese
+# intercambio.
+
+class ValoracionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    # El nombre del negocio que se quejó. None cuando la cuenta ya se borró,
+    # y ahí el panel dice "cuenta eliminada", igual que en la bitácora.
+    negocio: str | None = None
+    pregunta: str
+    respuesta: str
+    # "enrutador" o "modelo".
+    origen: str
+    intencion_detectada: str | None = None
+    # "buena" o "mala".
+    valoracion: str
+    comentario: str | None = None
+    estado: str
+    intencion_correcta: str | None = None
+    creado_en: datetime | None = None
+
+
+class ListaValoracionesOut(BaseModel):
+    total: int
+    buenas: int
+    malas: int
+    # Malas sin atender. Es la bandeja de entrada.
+    sin_revisar: int
+    # El número a vigilar: si el enrutador se lleva más quejas que el modelo,
+    # hay disparadores respondiendo preguntas que no eran suyas — y eso se
+    # arregla QUITANDO disparadores, no agregándolos.
+    malas_del_enrutador: int
+    valoraciones: list[ValoracionOut] = []
+
+
+class RevisarValoracion(BaseModel):
+    # Opcional: marcar como revisada sin etiquetar también vale.
+    intencion_correcta: str | None = Field(default=None, max_length=40)

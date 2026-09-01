@@ -29,9 +29,10 @@ from app.models.usuario import Usuario
 from app.schemas.admin import (
     CambiarActivo, CambiarAdmin, CambiarSuscripcion, ConsultaOut,
     EtiquetaOut, EtiquetarConsulta, ListaConsultasOut,
-    ListaNegociosOut, NegocioDetalleOut, RegistroAdminOut,
+    ListaNegociosOut, ListaValoracionesOut, NegocioDetalleOut,
+    RegistroAdminOut, RevisarValoracion, ValoracionOut,
 )
-from app.services import admin_service, consulta_service
+from app.services import admin_service, consulta_service, valoracion_service
 
 # La dependencia va en el router y no endpoint por endpoint a propósito: es
 # la única barrera que separa el panel de los datos de todos los clientes, y
@@ -216,3 +217,35 @@ def reabrir_consulta(
 ):
     """Deshace una etiqueta puesta por error. Vuelve a la bandeja."""
     return consulta_service.reabrir(db, admin, consulta_id)
+
+
+@router.get("/valoraciones", response_model=ListaValoracionesOut)
+def listar_valoraciones(
+    valoracion: str | None = Query(default=None, description="buena | mala"),
+    estado: str | None = Query(default=None, description="pendiente | revisada"),
+    limite: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """Lo que los tenderos calificaron, lo más reciente primero.
+
+    Empezar por `valoracion=mala&estado=pendiente`: son las quejas sin
+    atender, y cada una viene del único que puede saber si la respuesta era
+    cierta — el dueño mirando su propia estantería.
+    """
+    return valoracion_service.listar(db, valoracion, estado, limite)
+
+
+@router.put("/valoraciones/{valoracion_id}/revisar", response_model=ValoracionOut)
+def revisar_valoracion(
+    valoracion_id: str,
+    datos: RevisarValoracion,
+    admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(get_db),
+):
+    """Marca la queja como atendida, y de paso la etiqueta si procede.
+
+    Etiquetarla es lo que la convierte en un ejemplo de entrenamiento: una
+    queja con su intención correcta vale más que una pregunta etiquetada a
+    ojo desde el panel, porque viene con la prueba de que estaba mal.
+    """
+    return valoracion_service.revisar(db, admin, valoracion_id, datos.intencion_correcta)

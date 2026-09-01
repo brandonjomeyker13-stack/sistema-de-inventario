@@ -19,8 +19,8 @@ from app.core import limites
 from app.database.session import get_db
 from app.api.deps import obtener_usuario_actual, exigir_suscripcion_activa
 from app.models.usuario import Usuario
-from app.schemas.asistente import PreguntaCrear, RespuestaAsistente
-from app.services import asistente_service
+from app.schemas.asistente import PreguntaCrear, RespuestaAsistente, ValorarRespuesta
+from app.services import asistente_service, valoracion_service
 
 # El asistente también exige suscripción: cada pregunta cuesta dinero real
 # en el proveedor de IA, así que no puede quedar abierto a cuentas vencidas.
@@ -63,4 +63,36 @@ def preguntar(
     return asistente_service.preguntar(
         db, usuario_actual.id, datos.pregunta,
         [t.model_dump() for t in datos.historial],
+    )
+
+
+@router.post("/valorar", status_code=204)
+def valorar(
+    datos: ValorarRespuesta,
+    usuario_actual: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """El tendero dice si la respuesta le sirvió.
+
+    Es la mejor etiqueta que puede tener este proyecto. Quien sabe si
+    "tienes 3 productos por comprar" era verdad es el dueño mirando su
+    estantería, no nosotros desde el panel.
+
+    Solo aquí se guarda lo que respondió el asistente, y solo porque él lo
+    pidió: en el resto del sistema las respuestas no se guardan, porque
+    llevan las cifras del negocio. Pulsar el botón ES el consentimiento.
+
+    Sí queda de qué negocio es. Revisar una queja como "me dijo 3 y en
+    verdad son 5" obliga a ir a ver de dónde salió el 3, y sin eso la queja
+    se lee pero no arregla nada. Al tendero se le dice en la pantalla.
+    """
+    # Límite generoso: calificar es barato y no llama a nadie. Es solo para
+    # que un bucle mal hecho en el frontend no llene la tabla.
+    limites.exigir(
+        f"valorar:{usuario_actual.id}", maximo=60, segundos=60,
+        mensaje="Espera un momento antes de seguir calificando.",
+    )
+    valoracion_service.valorar(
+        db, usuario_actual.id, datos.pregunta, datos.respuesta, datos.origen,
+        datos.intencion, datos.firma, datos.valoracion, datos.comentario,
     )
