@@ -51,8 +51,18 @@ class RegistroAdminOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    admin_id: str
-    usuario_id: str
+    # NULABLES, y no es un detalle. Las llaves quedaron en ON DELETE SET NULL
+    # (migración 0027) para que borrar una cuenta no se lleve por delante el
+    # registro de que la borraste — justo el que más falta hace después.
+    #
+    # Declarados obligatorios, la primera cuenta borrada en cascada hacía
+    # reventar la bitácora entera con un 500 al validar la respuesta.
+    admin_id: str | None = None
+    usuario_id: str | None = None
+    # Quién era el negocio, en texto: "Papelería Sol (sol@correo.com)". Es lo
+    # único que queda cuando el id ya es NULL; sin esto una fila diría
+    # "alguien le hizo algo a alguien".
+    descripcion: str | None = None
     accion: str
     valor_antes: str | None = None
     valor_despues: str | None = None

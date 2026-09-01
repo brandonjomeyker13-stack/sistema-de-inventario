@@ -39,6 +39,15 @@ class UsuarioOut(BaseModel):
     dias_para_verificar: int = 0
     # Resultado de las dos condiciones juntas: si puede registrar ventas.
     puede_registrar: bool = True
+    # Solo para que el frontend sepa si enseñar la entrada al panel de
+    # administración. Va aquí, en un schema de SALIDA; ponerlo en uno de
+    # entrada sería el agujero que convierte a cualquiera en administrador
+    # con una sola petición, y hay una prueba que lo impide.
+    #
+    # Que lo diga el servidor no es un permiso: quien llame al panel sin
+    # serlo recibe un 403 igual. Esto solo evita enseñar un enlace que no
+    # lleva a ninguna parte.
+    es_admin: bool = False
 
 
 class UsuarioActualizar(BaseModel):

@@ -281,3 +281,18 @@ def test_a_otro_admin_si_se_le_puede_quitar(db, admin, otro_usuario):
 
     db.refresh(otro_usuario)
     assert otro_usuario.es_admin is False
+
+
+def test_el_perfil_dice_si_la_cuenta_es_administradora(db, usuario):
+    """Sin esto el frontend no puede decidir si enseña la entrada al panel.
+
+    Es un dato de SALIDA y no un permiso: quien llame al panel sin serlo
+    recibe 403 igual. Lo único que evita es enseñar un enlace muerto.
+    """
+    from app.schemas.usuario import UsuarioOut
+
+    assert UsuarioOut.model_validate(usuario).es_admin is False
+
+    usuario.es_admin = True
+    db.commit()
+    assert UsuarioOut.model_validate(usuario).es_admin is True
