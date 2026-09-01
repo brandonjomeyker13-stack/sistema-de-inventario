@@ -1,0 +1,11 @@
+# Solo para entrenar, NUNCA para producción.
+#
+# scikit-learn arrastra numpy y scipy: más de cien megas que el servidor no
+# necesita, porque entrenar se hace a mano en un portátil cada tanto. Lo que
+# sube a producción es el archivo del modelo, no la librería que lo fabricó.
+#
+#     pip install -r entrenamiento/requirements.txt
+#     python entrenamiento/entrenar.py
+
+scikit-learn~=1.7.0
+joblib~=1.5.0

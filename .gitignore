@@ -20,3 +20,22 @@ __pycache__/
 
 .vscode/
 .idea/
+
+# --- Entrenamiento -------------------------------------------------------
+#
+# El script SÍ va al repositorio: es código. Lo que no va es lo que produce.
+#
+# Los datos exportados, NUNCA. Son preguntas escritas por clientes reales, y
+# una vez en el historial de git se quedan ahí para siempre — también si el
+# repositorio se comparte o se hace público algún día. Los datos se sacan de
+# la base cuando hacen falta y se quedan en la máquina.
+entrenamiento/*.csv
+entrenamiento/datos/
+
+# El modelo entrenado, por ahora tampoco. Con pocos ejemplos sale malísimo, y
+# tenerlo en el repositorio es la forma de que un día se cargue en producción
+# sin que nadie lo haya decidido.
+#
+# Cuando de verdad acierte lo suficiente para usarse, se quita esta línea y
+# se sube: son unos cientos de kilobytes y producción lo necesita.
+entrenamiento/*.joblib
