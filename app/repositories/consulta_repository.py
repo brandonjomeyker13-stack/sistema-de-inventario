@@ -129,3 +129,31 @@ def resumen(db: Session) -> dict:
             func.coalesce(func.sum(ConsultaRegistrada.veces), 0)
         ).scalar() or 0,
     }
+
+
+def huerfanas(db: Session, validas: tuple[str, ...]) -> dict:
+    """Etiquetas guardadas que apuntan a una intención que ya no existe.
+
+    Normalmente cero. Deja de serlo el día que alguien renombre o borre una
+    intención del catálogo, y entonces cada fila que la usaba pierde su
+    sentido: un ejemplo etiquetado como `lista_de_compra` no vale nada si
+    esa intención ya no está.
+
+    El daño no avisa —no falla ninguna consulta, el panel simplemente
+    muestra un nombre que nadie reconoce— y por eso hay que contarlas. Con
+    doscientos ejemplos etiquetados a mano, enterarse tarde es perderlos.
+
+    Se devuelven también los NOMBRES: saber que hay 47 huérfanas no sirve
+    de nada si no se sabe de cuál intención venían.
+    """
+    filas = (db.query(ConsultaRegistrada.intencion_correcta,
+                      func.count(ConsultaRegistrada.id))
+             .filter(ConsultaRegistrada.intencion_correcta.isnot(None),
+                     ~ConsultaRegistrada.intencion_correcta.in_(validas))
+             .group_by(ConsultaRegistrada.intencion_correcta)
+             .all())
+
+    return {
+        "cuantas": sum(cuantas for _, cuantas in filas),
+        "intenciones": sorted(nombre for nombre, _ in filas),
+    }

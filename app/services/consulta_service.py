@@ -54,8 +54,13 @@ def registrar(db: Session, pregunta: str, intencion: str | None) -> None:
 def listar(db: Session, estado: str | None = None, sin_reconocer: bool = False,
            limite: int = 100) -> dict:
     """Lo que ve el panel: los números de arriba y la lista."""
+    perdidas = consulta_repository.huerfanas(db, ETIQUETAS_VALIDAS)
     return {
         **consulta_repository.resumen(db),
+        # Normalmente cero. Si aparece un número, alguien renombró o borró
+        # una intención y esas etiquetas dejaron de valer.
+        "huerfanas": perdidas["cuantas"],
+        "intenciones_huerfanas": perdidas["intenciones"],
         "consultas": consulta_repository.listar(db, estado, sin_reconocer, limite),
     }
 

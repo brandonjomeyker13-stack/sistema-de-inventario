@@ -217,3 +217,48 @@ def test_la_tabla_no_tiene_donde_guardar_la_respuesta(db):
     columnas = set(ConsultaRegistrada.__table__.columns.keys())
     assert "respuesta" not in columnas
     assert not [c for c in columnas if "respuest" in c]
+
+
+# --- Etiquetas que apuntan a una intención que ya no existe --------------
+
+def test_normalmente_no_hay_huerfanas(db, admin):
+    consulta_service.registrar(db, "¿qué me falta?", None)
+    consulta_service.etiquetar(db, admin, _filas(db)[0].id, "lista_de_compra")
+
+    resumen = consulta_service.listar(db)
+    assert resumen["huerfanas"] == 0
+    assert resumen["intenciones_huerfanas"] == []
+
+
+def test_renombrar_una_intencion_deja_las_etiquetas_sin_sentido(db, admin):
+    """EL DAÑO QUE ESTE CONTADOR HACE VISIBLE.
+
+    Los nombres de las intenciones están guardados en tres sitios y ya son
+    un contrato. El día que alguien renombre `lista_de_compra`, todas las
+    filas etiquetadas así quedan apuntando a algo que no existe — y no falla
+    nada: ninguna consulta revienta, el panel solo muestra un nombre que
+    nadie reconoce.
+
+    Con doscientos ejemplos puestos a mano, enterarse tarde es perderlos.
+    Aquí se simula una fila etiquetada con un nombre viejo.
+    """
+    consulta_service.registrar(db, "¿qué me falta?", None)
+    consulta = _filas(db)[0]
+    consulta.intencion_correcta = "lista_compras_vieja"
+    consulta.estado = ETIQUETADA
+    db.commit()
+
+    resumen = consulta_service.listar(db)
+    assert resumen["huerfanas"] == 1
+    # El nombre importa tanto como la cuenta: saber que hay 47 no sirve de
+    # nada si no se sabe de cuál intención venían.
+    assert resumen["intenciones_huerfanas"] == ["lista_compras_vieja"]
+
+
+def test_las_pendientes_y_descartadas_no_cuentan_como_huerfanas(db, admin):
+    """Solo cuentan las que tienen etiqueta puesta a mano. Una pregunta sin
+    revisar no perdió nada."""
+    consulta_service.registrar(db, "asdfgh", None)
+    consulta_service.descartar(db, admin, _filas(db)[0].id)
+
+    assert consulta_service.listar(db)["huerfanas"] == 0

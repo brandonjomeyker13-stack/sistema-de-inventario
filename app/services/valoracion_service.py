@@ -114,6 +114,13 @@ def resumen(db: Session) -> dict:
         "malas_del_enrutador": db.query(func.count(Valoracion.id)).filter(
             Valoracion.valoracion == MALA, Valoracion.origen == "enrutador",
         ).scalar() or 0,
+        # Quejas etiquetadas con una intención que ya no está en el catálogo.
+        # Ver consulta_repository.huerfanas: el daño de renombrar una
+        # intención no avisa, así que se cuenta.
+        "huerfanas": db.query(func.count(Valoracion.id)).filter(
+            Valoracion.intencion_correcta.isnot(None),
+            ~Valoracion.intencion_correcta.in_(ETIQUETAS_VALIDAS),
+        ).scalar() or 0,
     }
 
 

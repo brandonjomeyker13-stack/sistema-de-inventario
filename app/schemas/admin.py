@@ -150,6 +150,12 @@ class ListaConsultasOut(BaseModel):
     sin_reconocer: int
     # Contando repeticiones: cuántas veces se ha preguntado en total.
     veces_en_total: int
+    # Etiquetas que apuntan a una intención que ya no existe. Normalmente
+    # cero: si aparece un número, alguien renombró o borró una intención y
+    # esos ejemplos dejaron de servir para entrenar.
+    huerfanas: int = 0
+    # De cuáles intenciones venían. Saber que hay 47 no sirve sin esto.
+    intenciones_huerfanas: list[str] = []
     consultas: list[ConsultaOut] = []
 
 
@@ -201,6 +207,8 @@ class ListaValoracionesOut(BaseModel):
     # hay disparadores respondiendo preguntas que no eran suyas — y eso se
     # arregla QUITANDO disparadores, no agregándolos.
     malas_del_enrutador: int
+    # Quejas etiquetadas con una intención que ya no está en el catálogo.
+    huerfanas: int = 0
     valoraciones: list[ValoracionOut] = []
 
 
